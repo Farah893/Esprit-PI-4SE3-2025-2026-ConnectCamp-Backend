@@ -3,25 +3,41 @@ package tn.esprit.projetintegre.controllers;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+
 import org.springframework.http.ResponseEntity;
+
 import org.springframework.security.access.prepost.PreAuthorize;
+
 import org.springframework.web.bind.annotation.*;
+
 import tn.esprit.projetintegre.dto.ApiResponse;
 import tn.esprit.projetintegre.dto.PageResponse;
+
 import tn.esprit.projetintegre.dto.request.ProductRequest;
+import tn.esprit.projetintegre.dto.request.PriceCalculationRequest;
+
 import tn.esprit.projetintegre.dto.response.ProductResponse;
+import tn.esprit.projetintegre.dto.response.ProductQualityScoreResponse;
+import tn.esprit.projetintegre.dto.response.PriceCalculationResponse;
+
 import tn.esprit.projetintegre.entities.Product;
+
 import tn.esprit.projetintegre.mapper.DtoMapper;
+import tn.esprit.projetintegre.services.GeoLocationService;
 import tn.esprit.projetintegre.services.ProductService;
 
 import java.math.BigDecimal;
 import java.util.List;
-
+import java.util.Map;
 @RestController
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
@@ -31,6 +47,7 @@ public class ProductController {
 
     private final ProductService productService;
     private final DtoMapper dtoMapper;
+    private final GeoLocationService geoLocationService;
 
     @GetMapping
     @Operation(summary = "Get all active products with pagination")
@@ -87,6 +104,84 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success(PageResponse.from(response)));
     }
 
+    @GetMapping("/{id}/quality-score")
+    @Operation(summary = "Get product quality score",
+            description = "Returns a 0-100 quality score with breakdown across completeness, media, reviews, performance and seller dimensions.")
+    public ResponseEntity<ApiResponse<ProductQualityScoreResponse>> getProductQualityScore(
+            @PathVariable Long id) {
+
+        ProductQualityScoreResponse response = productService.calculateQualityScore(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+    @PostMapping("/quality-score/batch")
+    @Operation(summary = "Get quality scores for multiple products",
+            description = "Accepts a JSON array of product IDs and returns quality scores for each.")
+    public ResponseEntity<ApiResponse<List<ProductQualityScoreResponse>>> getProductQualityScoresBatch(
+            @RequestBody List<Long> productIds) {
+
+        List<ProductQualityScoreResponse> responses = productService.calculateQualityScoresBatch(productIds);
+        return ResponseEntity.ok(ApiResponse.success(responses));
+    }
+    @GetMapping("/quality-ranking")
+    @Operation(summary = "Get products ranked by quality score",
+            description = "Returns a paginated list of products sorted by their quality score in descending order.")
+    public ResponseEntity<ApiResponse<PageResponse<ProductQualityScoreResponse>>> getTopQualityProducts(
+            @RequestParam(defaultValue = "0")            int    page,
+            @RequestParam(defaultValue = "10")           int    size,
+            @RequestParam(defaultValue = "overallScore") String sortBy,
+            @RequestParam(defaultValue = "desc")         String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase("asc")
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        Page<ProductQualityScoreResponse> resultPage =
+                productService.getTopQualityProducts(PageRequest.of(page, size, sort));
+
+        return ResponseEntity.ok(ApiResponse.success(PageResponse.from(resultPage)));
+    }
+
+    @GetMapping("/{id}/price")
+    public ResponseEntity<ApiResponse<PriceCalculationResponse>> calculateProductPrice(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long variantId,
+            @RequestParam(required = false) String country,
+            @RequestParam(required = false) String postalCode,
+            @RequestParam(required = false, defaultValue = "1") Integer quantity,
+            HttpServletRequest httpRequest) {
+
+        // 🔥 1. récupérer IP
+        String ip = geoLocationService.getClientIp(httpRequest);
+
+        // 🔥 2. auto localisation SI country non fourni
+        if (country == null || country.isBlank()) {
+            country = geoLocationService.getCountryFromIp(ip);
+        }
+
+        // 🔥 3. construire request
+        PriceCalculationRequest request = PriceCalculationRequest.builder()
+                .productId(id)
+                .variantId(variantId)
+                .countryCode(country)
+                .postalCode(postalCode)
+                .quantity(quantity)
+                .build();
+
+        PriceCalculationResponse response = productService.calculatePrice(request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+    @PostMapping("/price/calculate-batch")
+    @Operation(
+            summary = "Batch price calculation for cart",
+            description = "Calculates localised prices for multiple products in a single request (e.g. cart checkout)."
+    )
+    public ResponseEntity<ApiResponse<List<PriceCalculationResponse>>> calculatePricesBatch(
+            @RequestBody List<PriceCalculationRequest> requests) {
+
+        List<PriceCalculationResponse> responses = productService.calculatePricesBatch(requests);
+        return ResponseEntity.ok(ApiResponse.success(responses));
+    }
     @GetMapping("/price-range")
     @Operation(summary = "Get products by price range")
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getProductsByPriceRange(
@@ -121,6 +216,15 @@ public class ProductController {
             @Valid @RequestBody ProductRequest request) {
         Product created = productService.createProduct(mapToProduct(request), request.getCategoryId(), request.getSellerId());
         return ResponseEntity.ok(ApiResponse.success("Produit créé avec succès", dtoMapper.toProductResponse(created)));
+    }
+    @GetMapping("/price/available-countries")
+    @Operation(
+            summary = "List supported countries with tax info",
+            description = "Returns all countries the platform can ship to, including VAT rate and shipping zone details."
+    )
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAvailableCountries() {
+        List<Map<String, Object>> countries = productService.getAvailableCountries();
+        return ResponseEntity.ok(ApiResponse.success(countries));
     }
 
     @PutMapping("/{id}")

@@ -1,10 +1,12 @@
 package tn.esprit.projetintegre.services;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tn.esprit.projetintegre.dto.response.OrderStatisticsResponse;
 import tn.esprit.projetintegre.entities.*;
 import tn.esprit.projetintegre.enums.OrderStatus;
 import tn.esprit.projetintegre.enums.PaymentStatus;
@@ -20,12 +22,19 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderService {
 
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final CartService cartService;
     private final UserService userService;
+    private final TrackingApiService trackingApiService;
+    private final TrackingNumberGenerator trackingNumberGenerator;
+
+    // =====================================================
+    // GET ORDERS
+    // =====================================================
 
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
@@ -49,11 +58,16 @@ public class OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with number: " + orderNumber));
     }
 
+    // =====================================================
+    // CREATE ORDER + TRACKING AUTO
+    // =====================================================
+
     @Transactional
     public Order createOrderFromCart(Long userId, String shippingName, String shippingPhone,
                                      String shippingAddress, String shippingCity,
                                      String shippingPostalCode, String shippingCountry,
                                      String paymentMethod, String notes) {
+
         User user = userService.getUserById(userId);
         Cart cart = cartService.getCartByUserId(userId);
 
@@ -61,13 +75,13 @@ public class OrderService {
             throw new IllegalStateException("Cart is empty");
         }
 
+        // ── Build order items ────────────────────────────────
         List<OrderItem> orderItems = new ArrayList<>();
         BigDecimal subtotal = BigDecimal.ZERO;
 
         for (CartItem cartItem : cart.getItems()) {
             Product product = cartItem.getProduct();
 
-            // Null-safe price from cart item
             BigDecimal itemPrice = cartItem.getPrice() != null
                     ? cartItem.getPrice()
                     : product.getPrice();
@@ -97,19 +111,14 @@ public class OrderService {
             productRepository.save(product);
         }
 
-        BigDecimal shippingCost = calculateShippingCost(subtotal);
-        BigDecimal taxAmount = subtotal.multiply(BigDecimal.valueOf(0.19));
-
-        // ── NULL-SAFE cart fields ──────────────────────────────────────────────
+        // ── Calculs montants ─────────────────────────────────
+        BigDecimal shippingCost   = calculateShippingCost(subtotal);
+        BigDecimal taxAmount      = subtotal.multiply(BigDecimal.valueOf(0.19));
         BigDecimal discountAmount = cart.getDiscountAmount() != null
-                ? cart.getDiscountAmount()
-                : BigDecimal.ZERO;
+                ? cart.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal totalAmount    = subtotal.add(shippingCost).add(taxAmount).subtract(discountAmount);
 
-        BigDecimal totalAmount = subtotal
-                .add(shippingCost)
-                .add(taxAmount)
-                .subtract(discountAmount);   // safe now
-
+        // ── Sauvegarde initiale ──────────────────────────────
         Order order = Order.builder()
                 .user(user)
                 .subtotal(subtotal)
@@ -130,70 +139,139 @@ public class OrderService {
                 .notes(notes)
                 .build();
 
-        order = orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
 
+        // Lier les items à la commande
         for (OrderItem item : orderItems) {
-            item.setOrder(order);
+            item.setOrder(savedOrder);
         }
-        order.setItems(orderItems);
-        order = orderRepository.save(order);
+        savedOrder.setItems(orderItems);
+        savedOrder = orderRepository.save(savedOrder);
 
+        // ── Tracking 17TRACK ─────────────────────────────────
+        // Non bloquant : la commande est créée même si 17TRACK échoue
+        savedOrder = generateAndRegisterTracking(savedOrder, shippingCountry);
+
+        // ── Post-traitement ───────────────────────────────────
         cartService.clearCart(userId);
 
         int loyaltyPoints = totalAmount.intValue() / 10;
         userService.addLoyaltyPoints(userId, loyaltyPoints);
 
+        log.info("✅ Commande #{} créée | tracking: {} | total: {} €",
+                savedOrder.getId(), savedOrder.getTrackingNumber(), totalAmount);
+
+        return savedOrder;
+    }
+
+    /**
+     * Génère un numéro de tracking, l'enregistre sur 17TRACK,
+     * et met à jour la commande en base.
+     * Retourne la commande mise à jour (ou inchangée si erreur).
+     */
+    private Order generateAndRegisterTracking(Order order, String shippingCountry) {
+        try {
+            // 1. Générer le numéro de tracking
+            String trackingNumber = trackingNumberGenerator.generateAndRegisterTracking(
+                    order,
+                    "Colissimo",
+                    shippingCountry
+            );
+
+            if (trackingNumber == null || trackingNumber.isBlank()) {
+                log.warn("Tracking number généré vide pour commande #{}", order.getId());
+                return order;
+            }
+
+            // 2. Persister le tracking number sur la commande
+            order.setTrackingNumber(trackingNumber);
+            order.setCarrierName("Colissimo");
+            order = orderRepository.save(order);
+
+            // 3. Le register 17TRACK a déjà été fait dans TrackingNumberGenerator
+            //    → le numéro est maintenant visible sur dashboard.17track.net
+            log.info("🚀 Tracking {} enregistré sur 17TRACK pour commande #{}",
+                    trackingNumber, order.getId());
+
+        } catch (Exception e) {
+            log.error("❌ Tracking non généré pour commande #{} (commande OK): {}",
+                    order.getId(), e.getMessage());
+        }
         return order;
     }
+
+    // =====================================================
+    // UPDATE STATUS
+    // =====================================================
+
     @Transactional
     public Order updateOrderStatus(Long orderId, OrderStatus status) {
         Order order = getOrderById(orderId);
         order.setStatus(status);
 
         switch (status) {
-            case SHIPPED:
-                order.setShippedAt(LocalDateTime.now());
-                break;
-            case DELIVERED:
-                order.setDeliveredAt(LocalDateTime.now());
-                break;
-            case CANCELLED:
+            case SHIPPED    -> order.setShippedAt(LocalDateTime.now());
+            case DELIVERED  -> order.setDeliveredAt(LocalDateTime.now());
+            case CANCELLED  -> {
                 order.setCancelledAt(LocalDateTime.now());
-                // Restore stock
+                // Remettre le stock
                 for (OrderItem item : order.getItems()) {
                     Product product = item.getProduct();
                     product.setStockQuantity(product.getStockQuantity() + item.getQuantity());
                     productRepository.save(product);
                 }
-                break;
-            default:
-                break;
+            }
         }
 
         return orderRepository.save(order);
     }
+
+    // =====================================================
+    // PAYMENT
+    // =====================================================
 
     @Transactional
     public Order updatePaymentStatus(Long orderId, PaymentStatus status, String transactionId) {
         Order order = getOrderById(orderId);
         order.setPaymentStatus(status);
         order.setPaymentTransactionId(transactionId);
+
         if (status == PaymentStatus.COMPLETED) {
             order.setPaidAt(LocalDateTime.now());
             order.setStatus(OrderStatus.CONFIRMED);
         }
+
         return orderRepository.save(order);
     }
 
+    // =====================================================
+    // BUSINESS LOGIC
+    // =====================================================
+
     private BigDecimal calculateShippingCost(BigDecimal subtotal) {
         if (subtotal.compareTo(BigDecimal.valueOf(100)) >= 0) {
-            return BigDecimal.ZERO; // Free shipping for orders over 100
+            return BigDecimal.ZERO;
         }
-        return BigDecimal.valueOf(7); // Fixed shipping cost
+        return BigDecimal.valueOf(7);
     }
 
     public BigDecimal getTotalRevenue() {
         BigDecimal revenue = orderRepository.getTotalRevenue();
         return revenue != null ? revenue : BigDecimal.ZERO;
+    }
+    // ── NOUVEAU 1 : Statistiques globales par statut ──────────────────────────
+// Appelle la query JPQL avec JOIN Order ↔ OrderItem
+// Utile pour le dashboard admin : répartition des commandes par statut
+    public List<OrderStatisticsResponse> getOrderStatisticsByStatus() {
+        return orderRepository.getOrderStatisticsByStatus();
+    }
+
+    // ── NOUVEAU 2 : Historique filtré pour un utilisateur ────────────────────
+// Combine userId + statut + date minimale de création
+// Exemple : toutes les commandes DELIVERED de l'user 5 depuis 30 jours
+    public List<Order> getOrdersByUserAndStatusSince(Long userId,
+                                                     OrderStatus status,
+                                                     LocalDateTime since) {
+        return orderRepository.findByUserIdAndStatusAndCreatedAtAfter(userId, status, since);
     }
 }
