@@ -2,6 +2,7 @@ package tn.esprit.projetintegre.entities;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -21,6 +22,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class ServiceReview {
 
     @Id
@@ -89,11 +91,13 @@ public class ServiceReview {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id", nullable = false)
     @NotNull(message = "Le service est obligatoire")
+    @JsonIgnoreProperties({"provider", "site", "images", "rating", "reviewCount"})
     private CampingService service;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @NotNull(message = "L'utilisateur est obligatoire")
+    @JsonIgnoreProperties({"password", "reviews", "orders", "transactions", "cart", "wallet", "earnedBadges"})
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)

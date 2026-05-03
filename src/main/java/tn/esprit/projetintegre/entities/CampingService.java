@@ -3,6 +3,7 @@ package tn.esprit.projetintegre.entities;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import tn.esprit.projetintegre.enums.ServiceType;
 
 import java.math.BigDecimal;
@@ -17,6 +18,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class CampingService {
 
     @Id
@@ -42,6 +44,7 @@ public class CampingService {
 
     @ManyToOne
     @JoinColumn(name = "provider_id")
+    @JsonIgnoreProperties({"password", "reviews", "orders", "transactions", "cart", "wallet", "earnedBadges"})
     private User provider;
 
     @ManyToOne
