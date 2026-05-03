@@ -274,4 +274,33 @@ public class OrderService {
                                                      LocalDateTime since) {
         return orderRepository.findByUserIdAndStatusAndCreatedAtAfter(userId, status, since);
     }
+    // Ajouter dans OrderService.java :
+
+    /**
+     * Retourne les commandes d'un statut donné, filtrées par catégorie de produit
+     * et par fenêtre temporelle.
+     *
+     * Exemple d'usage : toutes les commandes DELIVERED contenant un produit
+     * de la catégorie "Électronique" sur le dernier trimestre.
+     *
+     * @param status     statut de commande (ex: DELIVERED)
+     * @param categoryId identifiant de la catégorie cible
+     * @param startDate  borne inférieure (incluse)
+     * @param endDate    borne supérieure (incluse)
+     */
+    @Transactional(readOnly = true)
+    public List<Order> getOrdersByStatusCategoryAndPeriod(
+            OrderStatus status,
+            Long categoryId,
+            LocalDateTime startDate,
+            LocalDateTime endDate) {
+
+        // Valeurs par défaut si non fournies
+        LocalDateTime from = (startDate != null) ? startDate : LocalDateTime.now().minusMonths(1);
+        LocalDateTime to   = (endDate   != null) ? endDate   : LocalDateTime.now();
+
+        return orderRepository
+                .findDistinctByStatusAndItems_Product_Category_IdAndCreatedAtBetween(
+                        status, categoryId, from, to);
+    }
 }

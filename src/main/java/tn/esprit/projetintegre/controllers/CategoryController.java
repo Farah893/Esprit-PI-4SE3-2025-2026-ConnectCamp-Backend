@@ -5,16 +5,22 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.projetintegre.dto.ApiResponse;
 import tn.esprit.projetintegre.dto.request.CategoryRequest;
 import tn.esprit.projetintegre.dto.response.CategoryResponse;
+import tn.esprit.projetintegre.dto.response.CategorySalesReportResponse;
 import tn.esprit.projetintegre.entities.Category;
+import tn.esprit.projetintegre.entities.Order;
+import tn.esprit.projetintegre.enums.OrderStatus;
 import tn.esprit.projetintegre.mapper.DtoMapper;
 import tn.esprit.projetintegre.services.CategoryService;
+import tn.esprit.projetintegre.services.OrderService;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -26,6 +32,7 @@ public class CategoryController {
 
     private final CategoryService categoryService;
     private final DtoMapper dtoMapper;
+    private final OrderService orderService;
 
     @GetMapping
     @Operation(summary = "Get all categories")
@@ -109,5 +116,27 @@ public class CategoryController {
                 .isActive(request.getIsActive() != null ? request.getIsActive() : true)
                 .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
                 .build();
+    }
+    // Dans OrderController.java — ajouter :
+
+    @GetMapping("/by-category")
+    public ResponseEntity<List<Order>> getOrdersByCategory(
+            @RequestParam OrderStatus status,
+            @RequestParam Long categoryId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endDate) {
+
+        return ResponseEntity.ok(
+                orderService.getOrdersByStatusCategoryAndPeriod(
+                        status, categoryId, startDate, endDate));
+    }
+    // Dans CategoryController.java — ajouter :
+
+    @GetMapping("/sales-report")
+    public ResponseEntity<List<CategorySalesReportResponse>> getSalesReport(
+            @RequestParam(defaultValue = "DELIVERED") OrderStatus status) {
+        return ResponseEntity.ok(categoryService.getCategorySalesReport(status));
     }
 }

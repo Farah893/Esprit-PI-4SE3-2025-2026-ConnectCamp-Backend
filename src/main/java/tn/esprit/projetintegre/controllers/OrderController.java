@@ -241,4 +241,19 @@ public class OrderController {
                 ApiResponse.success(dtoMapper.toOrderResponseList(orders))
         );
     }
+    // Dans OrderController.java — ajouter :
+
+    @GetMapping("/by-category")
+    public ResponseEntity<List<Order>> getOrdersByCategory(
+            @RequestParam OrderStatus status,
+            @RequestParam Long categoryId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endDate) {
+
+        return ResponseEntity.ok(
+                orderService.getOrdersByStatusCategoryAndPeriod(
+                        status, categoryId, startDate, endDate));
+    }
 }

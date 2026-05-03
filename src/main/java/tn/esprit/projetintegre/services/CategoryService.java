@@ -3,7 +3,9 @@ package tn.esprit.projetintegre.services;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tn.esprit.projetintegre.dto.response.CategorySalesReportResponse;
 import tn.esprit.projetintegre.entities.Category;
+import tn.esprit.projetintegre.enums.OrderStatus;
 import tn.esprit.projetintegre.exception.DuplicateResourceException;
 import tn.esprit.projetintegre.exception.ResourceNotFoundException;
 import tn.esprit.projetintegre.repositories.CategoryRepository;
@@ -87,5 +89,21 @@ public class CategoryService {
         Category category = getCategoryById(id);
         category.setIsActive(false);
         categoryRepository.save(category);
+    }
+    // Ajouter dans CategoryService.java :
+
+
+
+    /**
+     * Rapport de ventes par catégorie.
+     * Délègue à la requête JPQL multi-tables du repository.
+     *
+     * @param status filtre sur le statut de commande (ex: DELIVERED)
+     * @return liste triée par revenu décroissant
+     */
+    @Transactional(readOnly = true)
+    public List<CategorySalesReportResponse> getCategorySalesReport(OrderStatus status) {
+        OrderStatus effectiveStatus = (status != null) ? status : OrderStatus.DELIVERED;
+        return categoryRepository.getCategorySalesReport(effectiveStatus);
     }
 }

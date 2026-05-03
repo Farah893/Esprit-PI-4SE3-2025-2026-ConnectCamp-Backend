@@ -81,4 +81,32 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             OrderStatus status,
             LocalDateTime createdAfter
     );
+
+    // Ajouter dans OrderRepository.java :
+
+    /**
+     * Keyword-based query — Spring Data génère automatiquement :
+     *
+     *   SELECT DISTINCT o.*
+     *   FROM orders o
+     *   JOIN order_items oi  ON oi.order_id   = o.id
+     *   JOIN products p      ON p.id          = oi.product_id
+     *   JOIN categories cat  ON cat.id        = p.category_id
+     *   WHERE o.status              = :status
+     *     AND cat.id                = :categoryId
+     *     AND o.created_at BETWEEN :startDate AND :endDate
+     *
+     * Traverse 4 tables (Order, OrderItem, Product, Category)
+     * grâce aux associations JPA déclarées dans les entités.
+     *
+     * @EntityGraph évite le N+1 sur items + product + category au chargement.
+     */
+    @EntityGraph(attributePaths = {"items", "items.product", "items.product.category", "user"})
+    List<Order> findDistinctByStatusAndItems_Product_Category_IdAndCreatedAtBetween(
+            OrderStatus status,
+            Long categoryId,
+            LocalDateTime startDate,
+            LocalDateTime endDate
+    );
+
 }
