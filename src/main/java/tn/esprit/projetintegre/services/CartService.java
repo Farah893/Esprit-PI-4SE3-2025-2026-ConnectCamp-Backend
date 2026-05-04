@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tn.esprit.projetintegre.entities.Cart;
 import tn.esprit.projetintegre.entities.CartItem;
 import tn.esprit.projetintegre.entities.Product;
+import tn.esprit.projetintegre.entities.Pack;
 import tn.esprit.projetintegre.entities.User;
 import tn.esprit.projetintegre.exception.ResourceNotFoundException;
 import tn.esprit.projetintegre.repositories.CartItemRepository;
