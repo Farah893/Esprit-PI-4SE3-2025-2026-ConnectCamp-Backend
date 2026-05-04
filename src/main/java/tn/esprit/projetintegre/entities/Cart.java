@@ -52,7 +52,15 @@ public class Cart {
 
     public void calculateTotal() {
         this.totalAmount = items.stream()
-                .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .map(item -> {
+                    BigDecimal price = item.getPrice();
+                    if (price == null) {
+                        if (item.getProduct() != null) price = item.getProduct().getPrice();
+                        else if (item.getPack() != null) price = item.getPack().getPrice();
+                    }
+                    return (price != null ? price : BigDecimal.ZERO)
+                            .multiply(BigDecimal.valueOf(item.getQuantity()));
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }
