@@ -15,7 +15,9 @@ import tn.esprit.projetintegre.services.GeneralReviewService;
 import tn.esprit.projetintegre.repositories.UserRepository;
 import tn.esprit.projetintegre.security.SecurityUtil;
 
+import tn.esprit.projetintegre.dto.ReviewResponseDTO;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Optional;
 
 @RestController
@@ -30,16 +32,19 @@ public class SiteReviewAliasController {
 
     @GetMapping("/site/{siteId}")
     @Operation(summary = "Get reviews for a site (Alias)")
-    public ResponseEntity<ApiResponse<List<Review>>> getSiteReviews(
+    public ResponseEntity<ApiResponse<List<ReviewResponseDTO>>> getSiteReviews(
             @PathVariable Long siteId,
             Pageable pageable) {
         Page<Review> page = reviewService.getReviewsByTarget(ReviewTargetType.SITE, siteId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(page.getContent()));
+        List<ReviewResponseDTO> dtos = page.getContent().stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success(dtos));
     }
 
     @PostMapping("/site/{siteId}")
     @Operation(summary = "Create a review for a site (Alias)")
-    public ResponseEntity<ApiResponse<Review>> createSiteReview(
+    public ResponseEntity<ApiResponse<ReviewResponseDTO>> createSiteReview(
             @PathVariable Long siteId,
             @RequestBody Review review,
             @RequestParam(required = false) Long userId) {
@@ -71,7 +76,29 @@ public class SiteReviewAliasController {
 
         review.setTargetType(ReviewTargetType.SITE);
         review.setTargetId(siteId);
-        return ResponseEntity.ok(ApiResponse.success("Review submitted successfully",
-                reviewService.createReview(review, finalUserId)));
+        Review saved = reviewService.createReview(review, finalUserId);
+        return ResponseEntity.ok(ApiResponse.success("Review submitted successfully", mapToDTO(saved)));
+    }
+
+    private ReviewResponseDTO mapToDTO(Review review) {
+        return ReviewResponseDTO.builder()
+                .id(review.getId())
+                .targetType(review.getTargetType())
+                .targetId(review.getTargetId())
+                .rating(review.getRating())
+                .title(review.getTitle())
+                .comment(review.getComment())
+                .images(review.getImages())
+                .likesCount(review.getLikesCount())
+                .verified(review.getVerified())
+                .approved(review.getApproved())
+                .response(review.getResponse())
+                .respondedAt(review.getRespondedAt())
+                .userId(review.getUser() != null ? review.getUser().getId() : null)
+                .userName(review.getUser() != null ? review.getUser().getName() : "Anonymous")
+                .userAvatar(review.getUser() != null ? review.getUser().getAvatar() : null)
+                .createdAt(review.getCreatedAt())
+                .updatedAt(review.getUpdatedAt())
+                .build();
     }
 }
