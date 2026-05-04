@@ -89,6 +89,14 @@ public class EmergencyAlertService {
     }
 
     @Transactional(readOnly = true)
+    public List<EmergencyAlertDTO.Response> getAllAlerts() {
+        if (!SecurityUtil.hasRole(Role.ADMIN)) {
+            throw new AccessDeniedException("Only ADMIN can view all alerts history");
+        }
+        return alertRepository.findAllWithDetails().stream().map(this::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<AlertWithInterventionStatsDTO> getActiveAlertsWithInterventionStats() {
         if (!SecurityUtil.hasRole(Role.ADMIN)) {
             throw new AccessDeniedException("Only ADMIN can access alert statistics");

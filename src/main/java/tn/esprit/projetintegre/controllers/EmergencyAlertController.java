@@ -45,6 +45,14 @@ public class EmergencyAlertController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get all alerts (history) - ADMIN ONLY")
+    public ResponseEntity<ApiResponse<List<EmergencyAlertDTO.Response>>> getAllAlerts() {
+        List<EmergencyAlertDTO.Response> response = alertService.getAllAlerts();
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @GetMapping("/my-alerts")
     @Operation(summary = "Get alerts reported by a specific user")
     public ResponseEntity<ApiResponse<List<EmergencyAlertDTO.Response>>> getMyAlerts(@RequestParam Long reporterId) {

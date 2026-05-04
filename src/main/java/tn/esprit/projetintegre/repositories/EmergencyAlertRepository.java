@@ -44,6 +44,10 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
     List<EmergencyAlert> findActiveAlerts();
 
     @EntityGraph(attributePaths = { "site", "reportedBy" })
+    @Query("SELECT ea FROM EmergencyAlert ea ORDER BY ea.reportedAt DESC")
+    List<EmergencyAlert> findAllWithDetails();
+
+    @EntityGraph(attributePaths = { "site", "reportedBy" })
     @Query("SELECT ea FROM EmergencyAlert ea WHERE ea.site.id = :siteId AND ea.status IN ('ACTIVE', 'ACKNOWLEDGED')")
     List<EmergencyAlert> findActiveAlertsBySite(@Param("siteId") Long siteId);
 
