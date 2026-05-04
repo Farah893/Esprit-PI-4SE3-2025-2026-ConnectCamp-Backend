@@ -59,10 +59,19 @@ public class CartController {
         return ResponseEntity.ok(ApiResponse.success("Item removed from cart", dtoMapper.toCartResponse(cart)));
     }
 
-    @DeleteMapping("/{userId}/clear")
-    @Operation(summary = "Clear cart")
-    public ResponseEntity<ApiResponse<CartResponse>> clearCart(@PathVariable Long userId) {
-        Cart cart = cartService.clearCart(userId);
-        return ResponseEntity.ok(ApiResponse.success("Cart cleared", dtoMapper.toCartResponse(cart)));
+    @PostMapping("/{userId}/promo")
+    @Operation(summary = "Apply promo code to cart")
+    public ResponseEntity<ApiResponse<CartResponse>> applyPromoCode(
+            @PathVariable Long userId,
+            @RequestParam String code) {
+        Cart cart = cartService.applyPromoCode(userId, code);
+        return ResponseEntity.ok(ApiResponse.success("Promo code applied", dtoMapper.toCartResponse(cart)));
+    }
+
+    @DeleteMapping("/{userId}/promo")
+    @Operation(summary = "Remove promo code from cart")
+    public ResponseEntity<ApiResponse<CartResponse>> removePromoCode(@PathVariable Long userId) {
+        Cart cart = cartService.removePromoCode(userId);
+        return ResponseEntity.ok(ApiResponse.success("Promo code removed", dtoMapper.toCartResponse(cart)));
     }
 }

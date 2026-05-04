@@ -25,7 +25,8 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final PackRepository packRepository;
-    private final UserService userService ;
+    private final UserService userService;
+    private final CouponService couponService;
 
 
     public Cart getCartByUserId(Long userId) {
@@ -133,6 +134,27 @@ public class CartService {
         cart.setTotalAmount(BigDecimal.ZERO);
         cart.setDiscountAmount(BigDecimal.ZERO);
         cart.setAppliedCouponCode(null);
+        return cartRepository.save(cart);
+    }
+    @Transactional
+    public Cart applyPromoCode(Long userId, String code) {
+        Cart cart = getCartByUserId(userId);
+        BigDecimal discount = couponService.calculateDiscount(code, cart.getTotalAmount());
+        
+        cart.setAppliedCouponCode(code);
+        cart.setDiscountAmount(discount);
+        cart.calculateTotal();
+        
+        return cartRepository.save(cart);
+    }
+
+    @Transactional
+    public Cart removePromoCode(Long userId) {
+        Cart cart = getCartByUserId(userId);
+        cart.setAppliedCouponCode(null);
+        cart.setDiscountAmount(BigDecimal.ZERO);
+        cart.calculateTotal();
+        
         return cartRepository.save(cart);
     }
 }

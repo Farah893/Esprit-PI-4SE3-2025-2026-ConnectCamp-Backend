@@ -39,7 +39,9 @@ public class EmergencyAlertController {
     @GetMapping("/active")
     @Operation(summary = "Get active alerts")
     public ResponseEntity<ApiResponse<List<EmergencyAlertDTO.Response>>> getActiveAlerts() {
+        System.out.println("DEBUG: getActiveAlerts called");
         List<EmergencyAlertDTO.Response> response = alertService.getActiveAlerts();
+        System.out.println("DEBUG: Returning " + response.size() + " active alerts");
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
