@@ -130,6 +130,7 @@ public class AiService {
     public AiPackAdvisorResponseDTO advisePacks(AiPackAdvisorRequestDTO request) {
         try {
         List<PackQualityDTO> packs = packService.getPackQualityMetrics();
+        System.out.println("DEBUG: AI Advisor found " + packs.size() + " packs to analyze");
 
         String packsJson = toJson(packs.stream().map(p -> {
                 Map<String, Object> m = new HashMap<>();
