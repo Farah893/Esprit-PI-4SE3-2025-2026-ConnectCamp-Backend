@@ -36,8 +36,10 @@ public class ServiceReviewController {
             @RequestParam Long userId,
             @RequestBody ServiceReview review) {
         ServiceReview created = serviceReviewService.createReview(review, serviceId, userId);
-        String msg = created.getIsApproved() ? "Review submitted successfully" : "Review submitted (pending AI approval check)";
-        return ResponseEntity.ok(ApiResponse.success(msg, created));
+        if (Boolean.FALSE.equals(created.getIsApproved())) {
+            return ResponseEntity.ok(ApiResponse.success("⚠ AI Guard: Inconsistency detected. The review is currently under manual verification.", created));
+        }
+        return ResponseEntity.ok(ApiResponse.success("✨ Review successfully posted! Thank you for your feedback.", created));
     }
 
     @DeleteMapping("/{id}")

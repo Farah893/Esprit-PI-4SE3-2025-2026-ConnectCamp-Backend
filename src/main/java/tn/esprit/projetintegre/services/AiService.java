@@ -87,23 +87,35 @@ public class AiService {
     // ─────────────────────────────────────────────────────────────────
 
     public boolean validateReviewConsistency(int rating, String text) {
-        if (text == null || text.length() < 10) return true; // Skip for very short text
+        if (text == null || text.length() < 10) return true;
 
         String prompt = """
-                Check if the following user review text matches the star rating of %d/5.
-                If the text is negative but the rating is high (4-5), or if the text is positive but the rating is low (1-2), mark it as inconsistent.
+                You are a Review Authenticity Guard for a camping resort. 
+                Analyze the COHERENCE between the user's star rating (%d/5) and their text comment.
+                
+                CRITICAL DETECTION RULES:
+                1. DETECT CONTRADICTION: If the text is overwhelmingly positive (e.g., 'Perfect', 'Loved it', 'Amazing') but the rating is low (1 or 2 stars), mark as inconsistent.
+                2. DETECT SARCASM/BOMBING: If the text is very negative (e.g., 'Terrible', 'Dirty', 'Avoid', 'Worst experience') but the rating is high (4 or 5 stars), mark as inconsistent.
+                3. NEUTRALITY: If the text is mixed or neutral, it is usually consistent.
                 
                 Review Text: "%s"
+                Star Rating: %d/5
                 
-                Respond ONLY with JSON: {"consistent": true|false, "reason": "short explanation"}
-                """.formatted(rating, text.replace("\"", "'"));
+                Respond ONLY with JSON: {"consistent": true|false, "reason": "short explanation of the contradiction or match"}
+                """.formatted(rating, text.replace("\"", "'"), rating);
 
         try {
             String raw = callGroq(prompt);
             JsonNode node = objectMapper.readTree(extractJson(raw));
-            return node.path("consistent").asBoolean(true);
+            boolean consistent = node.path("consistent").asBoolean(true);
+            if (!consistent) {
+                log.warn("AI detected inconsistent review: Rating={}, Text='{}', Reason='{}'", 
+                         rating, text, node.path("reason").asText());
+            }
+            return consistent;
         } catch (Exception e) {
-            return true; // Fallback to true on error
+            log.error("Consistency check failed, defaulting to true: {}", e.getMessage());
+            return true;
         }
     }
 
