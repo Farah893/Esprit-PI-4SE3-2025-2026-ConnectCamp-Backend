@@ -39,6 +39,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "Orders", description = "Order management endpoints")
 @SecurityRequirement(name = "Bearer Authentication")
+@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 public class OrderController {
 
     private final OrderService orderService;

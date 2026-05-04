@@ -1,5 +1,6 @@
 package tn.esprit.projetintegre.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import tn.esprit.projetintegre.enums.Role;
@@ -28,7 +29,16 @@ public class RegisterRequest {
 
     private String phone;
     private String address;
-
-    // New field
+    private String country;
+    private Integer age;
     private Role role;
+
+    @JsonProperty("isSeller")
+    private Boolean isSeller;
+
+    @JsonProperty("isBuyer")
+    private Boolean isBuyer;
+
+    private String storeName;
+    private String bio;
 }

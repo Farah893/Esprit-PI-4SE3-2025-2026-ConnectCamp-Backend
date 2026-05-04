@@ -67,12 +67,23 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setPhone(request.getPhone());
         user.setAddress(request.getAddress());
+        user.setCountry(request.getCountry());
+        user.setAge(request.getAge());
 
         // Set role – use provided or default to USER
         Role role = request.getRole() != null ? request.getRole() : Role.USER;
         user.setRole(role);
         user.setIsActive(true);
-        user.setIsBuyer(true);
+        
+        // Handle seller/buyer flags with explicit defaults
+        boolean isSellerFlag = Boolean.TRUE.equals(request.getIsSeller()) || role == Role.SELLER;
+        boolean isBuyerFlag = request.getIsBuyer() == null || Boolean.TRUE.equals(request.getIsBuyer());
+        
+        user.setIsSeller(isSellerFlag);
+        user.setIsBuyer(isBuyerFlag);
+        user.setStoreName(request.getStoreName());
+        user.setBio(request.getBio());
+
         if (role == Role.SPONSOR) {
             user.setSponsorStatus(SponsorStatus.PENDING);
         }
@@ -124,6 +135,9 @@ public class AuthService {
                 .name(user.getName())
                 .role(user.getRole())
                 .organizerId(ensureOrganizerId(user))
+                .isSeller(user.getIsSeller())
+                .isBuyer(user.getIsBuyer())
+                .storeName(user.getStoreName())
                 .build();
     }
 
@@ -150,6 +164,9 @@ public class AuthService {
                 .name(user.getName())
                 .role(user.getRole())
                 .organizerId(ensureOrganizerId(user))
+                .isSeller(user.getIsSeller())
+                .isBuyer(user.getIsBuyer())
+                .storeName(user.getStoreName())
                 .build();
     }
 

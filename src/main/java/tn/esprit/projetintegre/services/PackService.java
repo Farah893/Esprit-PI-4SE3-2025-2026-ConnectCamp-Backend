@@ -1,6 +1,12 @@
 package tn.esprit.projetintegre.services;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import tn.esprit.projetintegre.dto.BundleOptimizerResultDTO;
+import tn.esprit.projetintegre.dto.PackOptimizerDTO;
+import tn.esprit.projetintegre.dto.PackQualityDTO;
+import tn.esprit.projetintegre.dto.PackServiceStatsDTO;
+import tn.esprit.projetintegre.dto.PackValueRankDTO;
 import tn.esprit.projetintegre.exception.AccessDeniedException;
 import tn.esprit.projetintegre.security.SecurityUtil;
 import tn.esprit.projetintegre.enums.Role;
@@ -14,18 +20,25 @@ import tn.esprit.projetintegre.entities.Pack;
 import tn.esprit.projetintegre.entities.Site;
 import tn.esprit.projetintegre.entities.CampingService;
 import tn.esprit.projetintegre.enums.PackType;
+import tn.esprit.projetintegre.enums.ServiceType;
 import tn.esprit.projetintegre.exception.ResourceNotFoundException;
 import tn.esprit.projetintegre.exception.BusinessException;
 import tn.esprit.projetintegre.repositories.PackRepository;
 import tn.esprit.projetintegre.repositories.SiteRepository;
 import tn.esprit.projetintegre.repositories.CampingServiceRepository;
+import tn.esprit.projetintegre.repositories.ServiceReviewRepository;
+import tn.esprit.projetintegre.entities.ServiceReview;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class PackService {
@@ -33,6 +46,7 @@ public class PackService {
     private final PackRepository packRepository;
     private final SiteRepository siteRepository;
     private final CampingServiceRepository campingServiceRepository;
+    private final ServiceReviewRepository serviceReviewRepository;
 
     private void calculateAndValidatePricing(Pack pack) {
 
@@ -72,7 +86,6 @@ public class PackService {
     }
 
     public PackDTO.Response createPack(PackDTO.CreateRequest request) {
-        // Only ADMIN can create packs
         if (!SecurityUtil.hasRole(Role.ADMIN)) {
             throw new AccessDeniedException("Only ADMIN can create packs");
         }
@@ -83,7 +96,7 @@ public class PackService {
                 .price(request.getPrice())
                 .durationDays(request.getDurationDays())
                 .maxPersons(request.getMaxPersons())
-                .imageUrl(request.getImageUrl()) // Support URL
+                .imageUrl(request.getImageUrl())
                 .image(request.getImage() != null ? request.getImage()
                         : (request.getImages() != null && !request.getImages().isEmpty() ? request.getImages().get(0)
                                 : null))
@@ -139,13 +152,11 @@ public class PackService {
     }
 
     @Transactional(readOnly = true)
-    public Page<PackDTO.Response> getByType(PackType type, Pageable pageable) {
-        return packRepository.findByPackTypeProjected(type, pageable).map(this::toResponse);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<PackDTO.Response> getBySiteId(Long siteId, Pageable pageable) {
-        return packRepository.findBySiteIdProjected(siteId, pageable).map(this::toResponse);
+    public List<PackDTO.Response> filterPacks(String siteName, ServiceType serviceType) {
+        return packRepository.findByIsActiveTrueAndSite_NameContainingIgnoreCaseAndServices_Type(siteName, serviceType)
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -154,87 +165,158 @@ public class PackService {
     }
 
     @Transactional(readOnly = true)
-    public Page<PackDTO.Response> searchPacks(String keyword, Pageable pageable) {
-        return packRepository.searchPacksProjected(keyword, pageable).map(this::toResponse);
+    public List<PackServiceStatsDTO> getActivePacksWithServiceStats() {
+        return packRepository.findActivePacksWithServiceStats();
     }
 
     @Transactional(readOnly = true)
-    public Page<PackDTO.Response> getByPriceRange(BigDecimal minPrice, BigDecimal maxPrice, Pageable pageable) {
-        return packRepository.findByPriceRange(minPrice, maxPrice, pageable).map(this::toResponse);
+    public List<PackValueRankDTO> getPackValueRanking() {
+        List<PackServiceStatsDTO> stats = packRepository.findActivePacksWithServiceStats();
+        AtomicInteger rank = new AtomicInteger(1);
+
+        return stats.stream()
+                .filter(s -> s.getTotalServicesValue() != null && s.getPackPrice() != null
+                          && s.getPackPrice().compareTo(BigDecimal.ZERO) > 0)
+                .sorted(Comparator.comparingDouble(s -> {
+                    double score = s.getTotalServicesValue()
+                            .subtract(s.getPackPrice())
+                            .divide(s.getPackPrice(), 4, RoundingMode.HALF_UP)
+                            .multiply(BigDecimal.valueOf(100))
+                            .doubleValue();
+                    return -score;
+                }))
+                .map(s -> {
+                    BigDecimal svcValue = s.getTotalServicesValue() != null ? s.getTotalServicesValue() : BigDecimal.ZERO;
+                    BigDecimal savings = svcValue.subtract(s.getPackPrice());
+                    double valueScore = BigDecimal.valueOf(savings.doubleValue())
+                            .divide(s.getPackPrice(), 4, RoundingMode.HALF_UP)
+                            .multiply(BigDecimal.valueOf(100))
+                            .doubleValue();
+                    double rounded = Math.round(valueScore * 10.0) / 10.0;
+
+                    return new PackValueRankDTO(
+                            rank.getAndIncrement(),
+                            s.getPackId(),
+                            s.getPackName(),
+                            s.getPackType(),
+                            s.getSiteName(),
+                            s.getPackPrice(),
+                            svcValue,
+                            savings.setScale(2, RoundingMode.HALF_UP),
+                            rounded,
+                            s.getServiceCount()
+                    );
+                })
+                .toList();
     }
 
     @Transactional(readOnly = true)
-    public List<PackDTO.Response> getTopSellingPacks(int limit) {
-        return packRepository.findTopSellingPacks(PageRequest.of(0, limit)).stream().map(this::toResponse).toList();
+    public BundleOptimizerResultDTO optimizeBundle(BigDecimal budget, Integer persons) {
+        List<PackOptimizerDTO> candidates = packRepository.findPacksForOptimizer()
+                .stream()
+                .filter(p -> p.getPackPrice() != null && p.getPackPrice().compareTo(budget) <= 0)
+                .filter(p -> persons == null || p.getMaxPersons() == null || p.getMaxPersons() >= persons)
+                .sorted(Comparator.comparingDouble(p -> -p.getValueScore()))
+                .toList();
+
+        if (candidates.isEmpty()) {
+            BundleOptimizerResultDTO empty = new BundleOptimizerResultDTO();
+            empty.setSelectedPacks(List.of());
+            empty.setBudget(budget);
+            empty.setPersons(persons);
+            empty.setTotalPrice(BigDecimal.ZERO);
+            empty.setTotalServicesValue(BigDecimal.ZERO);
+            empty.setTotalSavings(BigDecimal.ZERO);
+            empty.setRemainingBudget(budget);
+            empty.setPackCount(0);
+            empty.setMessage("Aucun pack disponible pour ce budget.");
+            return empty;
+        }
+
+        List<PackOptimizerDTO> selected = new ArrayList<>();
+        BigDecimal remaining = budget;
+
+        for (PackOptimizerDTO pack : candidates) {
+            if (pack.getPackPrice().compareTo(remaining) <= 0) {
+                selected.add(pack);
+                remaining = remaining.subtract(pack.getPackPrice());
+            }
+        }
+
+        BigDecimal totalPrice = budget.subtract(remaining);
+        BigDecimal totalServicesValue = selected.stream()
+                .map(PackOptimizerDTO::getTotalServicesValue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BundleOptimizerResultDTO result = new BundleOptimizerResultDTO();
+        result.setSelectedPacks(selected);
+        result.setTotalPrice(totalPrice.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalServicesValue(totalServicesValue.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalSavings(totalServicesValue.subtract(totalPrice).setScale(2, RoundingMode.HALF_UP));
+        result.setBudget(budget);
+        result.setRemainingBudget(remaining.setScale(2, RoundingMode.HALF_UP));
+        result.setPersons(persons);
+        result.setPackCount(selected.size());
+        result.setMessage(selected.size() + " pack(s) sélectionné(s)");
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public List<PackQualityDTO> getPackQualityMetrics() {
+        List<PackQualityDTO> metrics = packRepository.findPackQualityMetrics();
+
+        for (PackQualityDTO pack : metrics) {
+            try {
+                Pack packEntity = packRepository.findById(pack.getPackId()).orElse(null);
+                if (packEntity != null && packEntity.getServices() != null) {
+                    List<String> allPros = new ArrayList<>();
+                    List<String> allCons = new ArrayList<>();
+
+                    for (CampingService service : packEntity.getServices()) {
+                        Page<ServiceReview> topReviews = serviceReviewRepository
+                                .findMostHelpfulByServiceId(service.getId(), PageRequest.of(0, 2));
+                        
+                        if (topReviews != null) {
+                            for (ServiceReview review : topReviews) {
+                                if (review.getPros() != null) allPros.addAll(review.getPros());
+                                if (review.getCons() != null) allCons.addAll(review.getCons());
+                            }
+                        }
+                    }
+
+                    pack.setTopPros(allPros.stream().filter(Objects::nonNull).distinct().limit(5).toList());
+                    pack.setTopCons(allCons.stream().filter(Objects::nonNull).distinct().limit(5).toList());
+                }
+            } catch (Exception e) {
+                log.error("Error enriching quality metrics for pack {}: {}", pack.getPackId(), e.getMessage());
+            }
+        }
+        return metrics;
     }
 
     public PackDTO.Response updatePack(Long id, PackDTO.UpdateRequest request) {
-        // Only ADMIN can update packs
         if (!SecurityUtil.hasRole(Role.ADMIN)) {
             throw new AccessDeniedException("Only ADMIN can update packs");
         }
         Pack pack = packRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Pack non trouvé avec l'ID: " + id));
 
-        if (request.getName() != null)
-            pack.setName(request.getName());
-        if (request.getDescription() != null)
-            pack.setDescription(request.getDescription());
-        if (request.getPackType() != null)
-            pack.setPackType(request.getPackType());
-        if (request.getPrice() != null)
-            pack.setPrice(request.getPrice());
-        if (request.getOriginalPrice() != null)
-            pack.setOriginalPrice(request.getOriginalPrice());
-        if (request.getDurationDays() != null)
-            pack.setDurationDays(request.getDurationDays());
-        if (request.getMaxPersons() != null)
-            pack.setMaxPersons(request.getMaxPersons());
-        if (request.getImageUrl() != null)
-            pack.setImageUrl(request.getImageUrl()); // Support URL
-        if (request.getImage() != null)
-            pack.setImage(request.getImage());
-        if (request.getImages() != null) {
-            pack.setImages(request.getImages());
-            if (pack.getImage() == null && !request.getImages().isEmpty()) {
-                pack.setImage(request.getImages().get(0));
-            }
-        }
-        if (request.getFeatures() != null)
-            pack.setFeatures(request.getFeatures());
-        if (request.getInclusions() != null)
-            pack.setInclusions(request.getInclusions());
-        if (request.getExclusions() != null)
-            pack.setExclusions(request.getExclusions());
-        if (request.getIsActive() != null)
-            pack.setIsActive(request.getIsActive());
-        if (request.getIsFeatured() != null)
-            pack.setIsFeatured(request.getIsFeatured());
-        if (request.getIsLimitedOffer() != null)
-            pack.setIsLimitedOffer(request.getIsLimitedOffer());
-        if (request.getAvailableQuantity() != null)
-            pack.setAvailableQuantity(request.getAvailableQuantity());
-        if (request.getValidFrom() != null)
-            pack.setValidFrom(request.getValidFrom());
-        if (request.getValidUntil() != null)
-            pack.setValidUntil(request.getValidUntil());
+        if (request.getName() != null) pack.setName(request.getName());
+        if (request.getDescription() != null) pack.setDescription(request.getDescription());
+        if (request.getPackType() != null) pack.setPackType(request.getPackType());
+        if (request.getPrice() != null) pack.setPrice(request.getPrice());
+        if (request.getOriginalPrice() != null) pack.setOriginalPrice(request.getOriginalPrice());
+        if (request.getDurationDays() != null) pack.setDurationDays(request.getDurationDays());
+        if (request.getMaxPersons() != null) pack.setMaxPersons(request.getMaxPersons());
+        if (request.getImageUrl() != null) pack.setImageUrl(request.getImageUrl());
         if (request.getServiceIds() != null) {
             List<CampingService> services = campingServiceRepository.findAllById(request.getServiceIds());
             pack.setServices(services);
         }
 
         calculateAndValidatePricing(pack);
-
         pack = packRepository.save(pack);
         return toResponse(pack);
-    }
-
-    @Transactional
-    public void setActiveStatus(Long id, boolean active) {
-        if (!packRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Pack non trouvé avec l'ID: " + id);
-        }
-        packRepository.updateActiveStatus(id, active);
     }
 
     @Transactional
@@ -245,8 +327,6 @@ public class PackService {
         if (!packRepository.existsById(id)) {
             throw new ResourceNotFoundException("Pack non trouvé avec l'ID: " + id);
         }
-        // Delete all related tables via native SQL — never load the entity
-        // (old packs may have large LONGTEXT images that cause connection failures)
         packRepository.deletePackServices(id);
         packRepository.deletePackImages(id);
         packRepository.deletePackFeatures(id);
@@ -280,8 +360,8 @@ public class PackService {
                 .imageUrl(projection.getImageUrl())
                 .serviceCount(projection.getServiceCount())
                 .createdAt(projection.getCreatedAt())
-                .serviceIds(new java.util.ArrayList<>()) // Services non chargés dans la projection pour stabilité
-                .serviceNames(new java.util.ArrayList<>())
+                .serviceIds(new ArrayList<>())
+                .serviceNames(new ArrayList<>())
                 .build();
     }
 
@@ -297,8 +377,6 @@ public class PackService {
                 .serviceCount(pack.getServices() != null ? pack.getServices().size() : 0)
                 .durationDays(pack.getDurationDays())
                 .maxPersons(pack.getMaxPersons())
-                // .image(pack.getImage()) // Reste désactivé car cause des 500/Link Failure
-                // .images(pack.getImages()) // Reste désactivé car cause des 500/Link Failure
                 .isActive(pack.getIsActive())
                 .isFeatured(pack.getIsFeatured())
                 .isLimitedOffer(pack.getIsLimitedOffer())
@@ -310,20 +388,20 @@ public class PackService {
                 .validUntil(pack.getValidUntil())
                 .siteId(pack.getSite() != null ? pack.getSite().getId() : null)
                 .siteName(pack.getSite() != null ? pack.getSite().getName() : null)
-                .imageUrl(pack.getImageUrl()) // Mappage de imageUrl
+                .imageUrl(pack.getImageUrl())
                 .createdAt(pack.getCreatedAt())
                 .serviceIds(pack.getServices() != null
                         ? pack.getServices().stream().map(CampingService::getId).toList()
-                        : new java.util.ArrayList<>())
+                        : new ArrayList<>())
                 .serviceNames(pack.getServices() != null
                         ? pack.getServices().stream().map(CampingService::getName).toList()
-                        : new java.util.ArrayList<>())
+                        : new ArrayList<>())
                 .build();
     }
 
     private Double calculateDiscount(BigDecimal price, BigDecimal originalPrice) {
         if (originalPrice != null && originalPrice.compareTo(BigDecimal.ZERO) > 0 && price != null) {
-            return originalPrice.subtract(price).divide(originalPrice, 4, java.math.RoundingMode.HALF_UP)
+            return originalPrice.subtract(price).divide(originalPrice, 4, RoundingMode.HALF_UP)
                     .multiply(BigDecimal.valueOf(100)).doubleValue();
         }
         return 0.0;

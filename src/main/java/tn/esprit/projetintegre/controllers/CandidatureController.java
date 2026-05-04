@@ -14,13 +14,14 @@ import tn.esprit.projetintegre.services.CandidatureServiceLogic;
 @RestController
 @RequestMapping("/api/candidatures")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 @Tag(name = "Candidatures Service", description = "Endpoints for participants to apply as workers and organizers to manage them")
 public class CandidatureController {
 
     private final CandidatureServiceLogic candidatureServiceLogic;
 
     @PostMapping("/apply/{eventServiceId}")
-    @PreAuthorize("hasRole('PARTICIPANT')")
+    @PreAuthorize("hasAnyRole('PARTICIPANT', 'CAMPER')")
     @Operation(summary = "Participant applies for a specific service in an event")
     public ResponseEntity<ApiResponse<Long>> apply(
             @PathVariable Long eventServiceId,

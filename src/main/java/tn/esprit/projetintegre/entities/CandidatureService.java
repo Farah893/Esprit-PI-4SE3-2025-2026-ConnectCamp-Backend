@@ -60,6 +60,24 @@ public class CandidatureService {
     @Max(value = 100, message = "Le score ne peut pas dépasser 100")
     private Integer scoreEvaluation;
 
+    @Column(length = 2000)
+    private String aiCompatibilitySummary;
+
+    @Column(length = 50)
+    private String aiRecommendation;
+
+    @ElementCollection
+    @CollectionTable(name = "candidature_ai_strengths", joinColumns = @JoinColumn(name = "candidature_id"))
+    @Column(name = "strength")
+    private List<String> aiStrengths = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(name = "candidature_ai_risks", joinColumns = @JoinColumn(name = "candidature_id"))
+    @Column(name = "risk")
+    private List<String> aiRisks = new ArrayList<>();
+
+    private Boolean isSuspicious = false;
+
     private LocalDateTime dateEntretien;
     private LocalDateTime dateDecision;
 

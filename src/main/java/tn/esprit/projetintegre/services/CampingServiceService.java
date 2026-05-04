@@ -63,9 +63,12 @@ public class CampingServiceService {
     public CampingService createService(CampingService service, Long providerId, Long siteId) {
         User provider = userRepository.findById(providerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Provider not found with id: " + providerId));
-        if (!SecurityUtil.hasRole(Role.ADMIN)) {
-            throw new AccessDeniedException("Only ADMIN can create services");
+        
+        // Permettre à l'ADMIN ou au prestataire de créer des services
+        if (!SecurityUtil.hasRole(Role.ADMIN) && !SecurityUtil.hasRole(Role.SELLER)) {
+            throw new AccessDeniedException("Only ADMIN or SELLER can create services");
         }
+        
         service.setProvider(provider);
 
         if (siteId != null) {
@@ -83,10 +86,13 @@ public class CampingServiceService {
     }
 
     public CampingService updateService(Long id, CampingService serviceDetails) {
-        if (!SecurityUtil.hasRole(Role.ADMIN)) {
-            throw new AccessDeniedException("Only ADMIN can update services");
-        }
         CampingService service = getServiceById(id);
+        
+        // Vérification de sécurité : ADMIN ou Propriétaire du service
+        if (!SecurityUtil.hasRole(Role.ADMIN) && !service.getProvider().getEmail().equals(SecurityUtil.getCurrentUserEmail())) {
+            throw new AccessDeniedException("You don't have permission to update this service");
+        }
+        
         service.setName(serviceDetails.getName());
         service.setDescription(serviceDetails.getDescription());
         service.setType(serviceDetails.getType());
@@ -105,10 +111,12 @@ public class CampingServiceService {
     }
 
     public void deleteService(Long id) {
-        if (!SecurityUtil.hasRole(Role.ADMIN)) {
-            throw new AccessDeniedException("Only ADMIN can delete services");
-        }
         CampingService service = getServiceById(id);
+        
+        if (!SecurityUtil.hasRole(Role.ADMIN) && !service.getProvider().getEmail().equals(SecurityUtil.getCurrentUserEmail())) {
+            throw new AccessDeniedException("You don't have permission to delete this service");
+        }
+        
         if (eventServiceEntityRepository.existsByServiceId(id)) {
             throw new CannotDeleteServiceException(
                     "Cannot delete service because it is assigned to one or more events.");
@@ -116,5 +124,9 @@ public class CampingServiceService {
 
         service.setIsActive(false);
         campingServiceRepository.save(service);
+    }
+
+    public List<Object[]> getAtRiskServices() {
+        return campingServiceRepository.findAtRiskServices();
     }
 }

@@ -18,6 +18,7 @@ import java.util.List;
 @RequestMapping("/api/wallets")
 @RequiredArgsConstructor
 @Tag(name = "Wallets", description = "Wallet management APIs")
+@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 public class WalletController {
 
     private final WalletService walletService;

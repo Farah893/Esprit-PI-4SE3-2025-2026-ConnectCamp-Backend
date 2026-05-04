@@ -21,6 +21,7 @@ import java.util.List;
 @RequestMapping("/api/transactions")
 @RequiredArgsConstructor
 @Tag(name = "Transactions", description = "Transaction management APIs")
+@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 public class TransactionController {
 
     private final TransactionService transactionService;

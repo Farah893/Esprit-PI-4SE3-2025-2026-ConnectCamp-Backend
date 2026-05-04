@@ -43,6 +43,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Tag(name = "Products", description = "Product management endpoints")
 @SecurityRequirement(name = "Bearer Authentication")
+@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 public class ProductController {
 
     private final ProductService productService;

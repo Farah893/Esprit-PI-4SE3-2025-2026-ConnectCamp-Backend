@@ -15,6 +15,7 @@ import tn.esprit.projetintegre.exception.ResourceNotFoundException;
 import tn.esprit.projetintegre.repositories.CandidatureServiceRepository;
 import tn.esprit.projetintegre.repositories.EventServiceEntityRepository;
 import tn.esprit.projetintegre.repositories.UserRepository;
+import tn.esprit.projetintegre.dto.AiCandidatureResponseDTO;
 
 import java.time.LocalDateTime;
 
@@ -26,6 +27,7 @@ public class CandidatureServiceLogic {
     private final CandidatureServiceRepository candidatureRepository;
     private final EventServiceEntityRepository eventServiceEntityRepository;
     private final UserRepository userRepository;
+    private final AiService aiService;
 
     public CandidatureService applyForService(Long userId, Long eventServiceId, CandidatureService candidatureDetails) {
         if (!SecurityUtil.hasRole(Role.PARTICIPANT) && !SecurityUtil.hasRole(Role.CAMPER)) {
@@ -53,6 +55,38 @@ public class CandidatureServiceLogic {
         candidatureDetails.setEventService(eventService);
         candidatureDetails.setService(eventService.getService()); // Populate service_id column
         candidatureDetails.setStatut(StatutCandidature.EN_ATTENTE);
+
+        // --- AI ANALYTICS ---
+        try {
+            // 1. Detect Fraud / Suspicious Content
+            boolean isFraud = aiService.detectCandidatureFraud(user.getName(), candidatureDetails.getLettreMotivation());
+            candidatureDetails.setIsSuspicious(isFraud);
+
+            // 2. Evaluate Matching
+            String serviceDesc = eventService.getDescription() != null ? eventService.getDescription() : "";
+            String eventTitle = eventService.getEvent().getTitle();
+            String eventDesc = eventService.getEvent().getDescription() != null ? eventService.getEvent().getDescription() : "";
+
+            AiCandidatureResponseDTO aiResult = aiService.evaluateCandidateMatching(
+                user.getName(), 
+                candidatureDetails.getLettreMotivation(),
+                eventService.getName(),
+                serviceDesc,
+                eventTitle,
+                eventDesc
+            );
+
+            candidatureDetails.setScoreEvaluation(aiResult.getScore());
+            candidatureDetails.setAiCompatibilitySummary(aiResult.getSummary());
+            candidatureDetails.setAiRecommendation(aiResult.getRecommendation());
+            candidatureDetails.setAiStrengths(aiResult.getStrengths());
+            candidatureDetails.setAiRisks(aiResult.getRisks());
+
+        } catch (Exception e) {
+            System.err.println("[AI ERROR] Failed to evaluate candidature: " + e.getMessage());
+            candidatureDetails.setScoreEvaluation(0);
+            candidatureDetails.setAiRecommendation("PENDING");
+        }
 
         System.out.println("[DEBUG] Saving candidature: " + candidatureDetails.getLettreMotivation());
         return candidatureRepository.save(candidatureDetails);
@@ -106,8 +140,8 @@ public class CandidatureServiceLogic {
     }
 
     public void withdrawCandidature(Long candidatureId, Long userId) {
-        if (!SecurityUtil.hasRole(Role.PARTICIPANT)) {
-            throw new AccessDeniedException("Only PARTICIPANT can withdraw candidature");
+        if (!SecurityUtil.hasAnyRole(Role.PARTICIPANT, Role.CAMPER)) {
+            throw new AccessDeniedException("Only PARTICIPANT or CAMPER can withdraw candidature");
         }
         CandidatureService candidature = candidatureRepository.findById(candidatureId)
                 .orElseThrow(

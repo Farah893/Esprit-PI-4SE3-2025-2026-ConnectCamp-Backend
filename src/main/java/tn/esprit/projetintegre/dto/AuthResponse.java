@@ -19,4 +19,7 @@ public class AuthResponse {
     private String name;
     private Role role;
     private Long organizerId;
+    private Boolean isSeller;
+    private Boolean isBuyer;
+    private String storeName;
 }

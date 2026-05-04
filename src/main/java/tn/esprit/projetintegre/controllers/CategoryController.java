@@ -28,6 +28,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "Categories", description = "Category management endpoints")
 @SecurityRequirement(name = "Bearer Authentication")
+@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 public class CategoryController {
 
     private final CategoryService categoryService;

@@ -4,50 +4,50 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import tn.esprit.projetintegre.dto.ApiResponse;
-import tn.esprit.projetintegre.dto.EmergencyAlertDTO;
-import tn.esprit.projetintegre.dto.PageResponse;
-import tn.esprit.projetintegre.enums.AlertStatus;
+import tn.esprit.projetintegre.dto.*;
+import tn.esprit.projetintegre.dto.ml.EmergencyMLResponse;
+import tn.esprit.projetintegre.entities.EmergencyAlert;
 import tn.esprit.projetintegre.services.EmergencyAlertService;
+import tn.esprit.projetintegre.services.EmergencyMLService;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/emergency-alerts")
 @RequiredArgsConstructor
-@Tag(name = "Alertes d'Urgence", description = "API pour la gestion des alertes d'urgence")
+@Tag(name = "Emergency Alerts", description = "Emergency alert management APIs")
 public class EmergencyAlertController {
 
     private final EmergencyAlertService alertService;
+    private final EmergencyMLService emergencyMLService;
 
     @PostMapping
     @PreAuthorize("hasRole('CAMPER') or hasRole('PARTICIPANT') or hasRole('USER')")
-    @Operation(summary = "Créer une alerte d'urgence (Réservé aux CAMPER)")
+    @Operation(summary = "Create an SOS alert")
     public ResponseEntity<ApiResponse<EmergencyAlertDTO.Response>> createAlert(
             @RequestParam Long reporterId,
             @Valid @RequestBody EmergencyAlertDTO.CreateRequest request) {
         EmergencyAlertDTO.Response response = alertService.createAlert(reporterId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Alerte d'urgence créée avec succès", response));
+                .body(ApiResponse.success("Emergency alert created successfully", response));
+    }
+
+    @GetMapping("/active")
+    @Operation(summary = "Get active alerts")
+    public ResponseEntity<ApiResponse<List<EmergencyAlertDTO.Response>>> getActiveAlerts() {
+        List<EmergencyAlertDTO.Response> response = alertService.getActiveAlerts();
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/my-alerts")
-    @PreAuthorize("hasRole('CAMPER') or hasRole('PARTICIPANT') or hasRole('USER')")
-    @Operation(summary = "Obtenir mes propres alertes (Camper)")
-    public ResponseEntity<ApiResponse<PageResponse<EmergencyAlertDTO.Response>>> getMyAlerts(
-            @RequestParam Long reporterId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("reportedAt").descending());
-        var result = alertService.getByReporterId(reporterId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(PageResponse.from(result)));
+    @Operation(summary = "Get alerts reported by a specific user")
+    public ResponseEntity<ApiResponse<List<EmergencyAlertDTO.Response>>> getMyAlerts(@RequestParam Long reporterId) {
+        List<EmergencyAlertDTO.Response> response = alertService.getAlertsByReporter(reporterId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/{id}")
@@ -57,86 +57,70 @@ public class EmergencyAlertController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @GetMapping("/active")
-    @Operation(summary = "Obtenir les alertes actives")
-    public ResponseEntity<ApiResponse<List<EmergencyAlertDTO.Response>>> getActiveAlerts() {
-        List<EmergencyAlertDTO.Response> response = alertService.getActiveAlerts();
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Obtenir toutes les alertes (ADMIN only)")
-    public ResponseEntity<ApiResponse<List<EmergencyAlertDTO.Response>>> getAllAlerts() {
-        List<EmergencyAlertDTO.Response> response = alertService.getAllAlerts();
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    @GetMapping("/critical")
-    @Operation(summary = "Obtenir les alertes critiques")
-    public ResponseEntity<ApiResponse<List<EmergencyAlertDTO.Response>>> getCriticalAlerts() {
-        List<EmergencyAlertDTO.Response> response = alertService.getCriticalAlerts();
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    @GetMapping("/site/{siteId}")
-    @Operation(summary = "Obtenir les alertes d'un site")
-    public ResponseEntity<ApiResponse<PageResponse<EmergencyAlertDTO.Response>>> getBySiteId(
-            @PathVariable Long siteId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("reportedAt").descending());
-        var result = alertService.getBySiteId(siteId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(PageResponse.from(result)));
-    }
-
-    @GetMapping("/status/{status}")
-    @Operation(summary = "Obtenir les alertes par statut")
-    public ResponseEntity<ApiResponse<PageResponse<EmergencyAlertDTO.Response>>> getByStatus(
-            @PathVariable AlertStatus status,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("reportedAt").descending());
-        var result = alertService.getByStatus(status, pageable);
-        return ResponseEntity.ok(ApiResponse.success(PageResponse.from(result)));
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Mettre à jour une alerte")
-    public ResponseEntity<ApiResponse<EmergencyAlertDTO.Response>> updateAlert(
-            @PathVariable Long id,
-            @Valid @RequestBody EmergencyAlertDTO.UpdateRequest request) {
-        EmergencyAlertDTO.Response response = alertService.updateAlert(id, request);
-        return ResponseEntity.ok(ApiResponse.success("Alerte mise à jour avec succès", response));
-    }
-
     @PutMapping("/{id}/acknowledge")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Acquitter une alerte")
+    @Operation(summary = "Acknowledge an alert")
     public ResponseEntity<ApiResponse<EmergencyAlertDTO.Response>> acknowledgeAlert(
             @PathVariable Long id,
             @RequestParam Long userId) {
         EmergencyAlertDTO.Response response = alertService.acknowledgeAlert(id, userId);
-        return ResponseEntity.ok(ApiResponse.success("Alerte acquittée avec succès", response));
+        return ResponseEntity.ok(ApiResponse.success("Alert acknowledged successfully", response));
     }
 
     @PutMapping("/{id}/resolve")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Résoudre une alerte")
+    @Operation(summary = "Resolve an alert")
     public ResponseEntity<ApiResponse<EmergencyAlertDTO.Response>> resolveAlert(
             @PathVariable Long id,
             @RequestParam Long userId,
             @RequestParam(required = false) String resolutionNotes) {
         EmergencyAlertDTO.Response response = alertService.resolveAlert(id, userId, resolutionNotes);
-        return ResponseEntity.ok(ApiResponse.success("Alerte résolue avec succès", response));
+        return ResponseEntity.ok(ApiResponse.success("Alert resolved successfully", response));
     }
 
-    @DeleteMapping("/{id}")
+    @GetMapping("/risk-score/{siteId}")
+    @Operation(summary = "Get real-time risk score for a site")
+    public ResponseEntity<ApiResponse<SiteRiskScoreDTO>> getSiteRiskScore(@PathVariable Long siteId) {
+        SiteRiskScoreDTO result = alertService.calculateSiteRiskScore(siteId);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @GetMapping("/intervention-efficiency")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Supprimer une alerte")
-    public ResponseEntity<ApiResponse<Void>> deleteAlert(@PathVariable Long id) {
-        alertService.deleteAlert(id);
-        return ResponseEntity.ok(ApiResponse.success("Alerte supprimée avec succès", null));
+    @Operation(summary = "Get intervention efficiency metrics (ADMIN)")
+    public ResponseEntity<ApiResponse<List<InterventionEfficiencyDTO>>> getInterventionEfficiency() {
+        List<InterventionEfficiencyDTO> result = alertService.getInterventionEfficiency();
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @GetMapping("/stats/with-interventions")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get active alerts with intervention stats (ADMIN)")
+    public ResponseEntity<ApiResponse<List<AlertWithInterventionStatsDTO>>> getAlertsWithInterventionStats() {
+        List<AlertWithInterventionStatsDTO> stats = alertService.getActiveAlertsWithInterventionStats();
+        return ResponseEntity.ok(ApiResponse.success(stats));
+    }
+
+    // ── ML Prediction endpoints ───────────────────────────────────────────
+
+    @GetMapping("/{id}/ml/predict")
+    @Operation(summary = "Predict severity + response time for an existing alert (ML)")
+    public ResponseEntity<ApiResponse<EmergencyMLResponse>> predictForAlert(@PathVariable Long id) {
+        EmergencyAlert alert = alertService.getAlertEntity(id);
+        EmergencyMLResponse result = emergencyMLService.predictFull(alert);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @PostMapping("/ml/predict-severity")
+    @Operation(summary = "Predict emergency severity from text (ML)")
+    public ResponseEntity<ApiResponse<EmergencyMLResponse>> predictSeverity(
+            @RequestParam String title,
+            @RequestParam String description,
+            @RequestParam String emergencyType,
+            @RequestParam(defaultValue = "1") int affectedPersons,
+            @RequestParam(defaultValue = "false") boolean evacuationRequired) {
+        EmergencyMLResponse result = emergencyMLService.predictSeverity(
+                title, description, emergencyType, affectedPersons, evacuationRequired);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 }

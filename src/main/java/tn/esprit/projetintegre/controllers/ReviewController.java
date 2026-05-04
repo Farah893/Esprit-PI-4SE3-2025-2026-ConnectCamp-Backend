@@ -15,6 +15,7 @@ import tn.esprit.projetintegre.services.ReviewService;
 @RestController
 @RequestMapping("/api/reviews")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 @Tag(name = "Reviews", description = "Product review management APIs")
 public class ReviewController {
 

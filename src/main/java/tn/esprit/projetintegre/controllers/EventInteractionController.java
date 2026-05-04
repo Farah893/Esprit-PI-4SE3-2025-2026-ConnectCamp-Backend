@@ -13,6 +13,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/events")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 @Tag(name = "Event Interactions", description = "Endpoints for likes and dislikes on events")
 public class EventInteractionController {
 

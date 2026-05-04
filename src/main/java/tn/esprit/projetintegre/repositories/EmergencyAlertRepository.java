@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import tn.esprit.projetintegre.dto.AlertWithInterventionStatsDTO;
+import tn.esprit.projetintegre.dto.InterventionEfficiencyDTO;
 import tn.esprit.projetintegre.entities.EmergencyAlert;
 import tn.esprit.projetintegre.enums.AlertStatus;
 import tn.esprit.projetintegre.enums.EmergencyType;
@@ -19,7 +21,7 @@ import java.util.Optional;
 @Repository
 public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, Long> {
 
-    @EntityGraph(attributePaths = { "site", "reportedBy" }) // Charge les relations nécessaires
+    @EntityGraph(attributePaths = { "site", "reportedBy" })
     Optional<EmergencyAlert> findById(Long id);
 
     @EntityGraph(attributePaths = { "site", "reportedBy" })
@@ -63,4 +65,34 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
 
     @EntityGraph(attributePaths = { "site", "reportedBy" })
     Page<EmergencyAlert> findByReportedById(Long reporterId, Pageable pageable);
+
+    @EntityGraph(attributePaths = { "site", "reportedBy" })
+    List<EmergencyAlert> findByReportedByIdOrderByReportedAtDesc(Long reporterId);
+
+    // --- Advanced Methods migrated from reference ---
+
+    @Query("SELECT new tn.esprit.projetintegre.dto.AlertWithInterventionStatsDTO(" +
+           "  a.id, a.alertCode, a.title, a.emergencyType, a.severity, a.status, " +
+           "  s.name, u.name, COUNT(i.id), a.reportedAt) " +
+           "FROM EmergencyAlert a " +
+           "JOIN a.reportedBy u " +
+           "LEFT JOIN a.site s " +
+           "LEFT JOIN EmergencyIntervention i ON i.alert.id = a.id " +
+           "WHERE a.status IN ('ACTIVE', 'ACKNOWLEDGED') " +
+           "GROUP BY a.id, a.alertCode, a.title, a.emergencyType, a.severity, a.status, " +
+           "         s.name, u.name, a.reportedAt " +
+           "ORDER BY a.severity DESC, a.reportedAt DESC")
+    List<AlertWithInterventionStatsDTO> findActiveAlertsWithInterventionStats();
+
+    @Query("SELECT new tn.esprit.projetintegre.dto.InterventionEfficiencyDTO(" +
+           "  a.emergencyType, COUNT(DISTINCT a.id), COUNT(i.id), AVG(i.responseTimeMinutes)) " +
+           "FROM EmergencyAlert a " +
+           "LEFT JOIN EmergencyIntervention i ON i.alert.id = a.id " +
+           "GROUP BY a.emergencyType " +
+           "ORDER BY COUNT(DISTINCT a.id) DESC")
+    List<InterventionEfficiencyDTO> findInterventionEfficiencyByType();
+
+    @Query("SELECT a.emergencyType, COUNT(a.id) FROM EmergencyAlert a " +
+           "WHERE a.status = 'RESOLVED' GROUP BY a.emergencyType")
+    List<Object[]> countResolvedByType();
 }

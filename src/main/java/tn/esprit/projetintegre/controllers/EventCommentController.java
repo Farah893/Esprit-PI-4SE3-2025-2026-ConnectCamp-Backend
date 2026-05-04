@@ -18,6 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/comments")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 @Tag(name = "Event Comments", description = "Event comment management APIs")
 public class EventCommentController {
 

@@ -17,6 +17,7 @@ import tn.esprit.projetintegre.services.CartService;
 @RequiredArgsConstructor
 @Tag(name = "Cart", description = "Shopping cart endpoints")
 @SecurityRequirement(name = "Bearer Authentication")
+@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 public class CartController {
 
     private final CartService cartService;

@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tn.esprit.projetintegre.entities.ServiceReview;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -49,4 +50,7 @@ public interface ServiceReviewRepository extends JpaRepository<ServiceReview, Lo
     @EntityGraph(attributePaths = {"service", "user"})
     @Query("SELECT sr FROM ServiceReview sr WHERE sr.isApproved = false ORDER BY sr.createdAt DESC")
     Page<ServiceReview> findPendingReviews(Pageable pageable);
+
+    @Query("SELECT sr.comment FROM ServiceReview sr WHERE sr.service.id = :serviceId AND sr.isApproved = true")
+    List<String> findAllCommentsByServiceId(@Param("serviceId") Long serviceId);
 }

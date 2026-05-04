@@ -8,8 +8,12 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import tn.esprit.projetintegre.dto.PackServiceStatsDTO;
+import tn.esprit.projetintegre.dto.PackOptimizerDTO;
+import tn.esprit.projetintegre.dto.PackQualityDTO;
 import tn.esprit.projetintegre.entities.Pack;
 import tn.esprit.projetintegre.enums.PackType;
+import tn.esprit.projetintegre.enums.ServiceType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -22,7 +26,7 @@ import java.util.Optional;
 public interface PackRepository extends JpaRepository<Pack, Long> {
 
     @Override
-    @EntityGraph(attributePaths = { "site" }) // Charge les relations nécessaires
+    @EntityGraph(attributePaths = { "site" })
     Optional<Pack> findById(Long id);
 
     @Modifying
@@ -149,4 +153,46 @@ public interface PackRepository extends JpaRepository<Pack, Long> {
     @EntityGraph(attributePaths = { "site" })
     @Query("SELECT p FROM Pack p WHERE p.isActive = true ORDER BY p.rating DESC")
     List<Pack> findTopRatedPacks(Pageable pageable);
+
+    // --- Advanced Methods migrated from reference ---
+
+    @Query("SELECT new tn.esprit.projetintegre.dto.PackServiceStatsDTO(" +
+           "  p.id, p.name, p.packType, p.price, p.originalPrice, " +
+           "  s.name, COUNT(cs.id), COALESCE(SUM(cs.price), 0)) " +
+           "FROM Pack p " +
+           "LEFT JOIN p.site s " +
+           "LEFT JOIN p.services cs " +
+           "WHERE p.isActive = true " +
+           "GROUP BY p.id, p.name, p.packType, p.price, p.originalPrice, s.id, s.name " +
+           "ORDER BY p.soldCount DESC")
+    List<PackServiceStatsDTO> findActivePacksWithServiceStats();
+
+    @Query("SELECT new tn.esprit.projetintegre.dto.PackOptimizerDTO(" +
+           "  p.id, p.name, p.packType, p.price, " +
+           "  s.name, COUNT(cs.id), COALESCE(SUM(cs.price), 0), p.maxPersons) " +
+           "FROM Pack p " +
+           "LEFT JOIN p.site s " +
+           "LEFT JOIN p.services cs " +
+           "WHERE p.isActive = true " +
+           "GROUP BY p.id, p.name, p.packType, p.price, s.id, s.name, p.maxPersons " +
+           "ORDER BY p.soldCount DESC")
+    List<PackOptimizerDTO> findPacksForOptimizer();
+
+    @Query("SELECT p FROM Pack p JOIN p.site s JOIN p.services cs WHERE p.isActive = true AND LOWER(s.name) LIKE LOWER(CONCAT('%', :siteName, '%')) AND cs.type = :serviceType")
+    List<Pack> findByIsActiveTrueAndSite_NameContainingIgnoreCaseAndServices_Type(@Param("siteName") String siteName, @Param("serviceType") ServiceType serviceType);
+
+    @Query("SELECT new tn.esprit.projetintegre.dto.PackQualityDTO(" +
+           "  p.id, p.name, s.name, s.city, p.price, p.rating, " +
+           "  COUNT(DISTINCT sr.id), " +
+           "  AVG(CAST(sr.qualityRating AS double)), " +
+           "  AVG(CAST(sr.valueRating AS double)), " +
+           "  null, null) " +
+           "FROM Pack p " +
+           "LEFT JOIN p.site s " +
+           "LEFT JOIN p.services cs " +
+           "LEFT JOIN ServiceReview sr ON sr.service.id = cs.id AND sr.isApproved = true " +
+           "WHERE p.isActive = true " +
+           "GROUP BY p.id, p.name, s.id, s.name, s.city, p.price, p.rating " +
+           "ORDER BY p.rating DESC")
+    List<PackQualityDTO> findPackQualityMetrics();
 }
