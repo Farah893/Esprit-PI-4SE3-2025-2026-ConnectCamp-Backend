@@ -86,8 +86,10 @@ public class AiService {
     //  FEATURE 1.5 — Review Authenticity Guard
     // ─────────────────────────────────────────────────────────────────
 
-    public boolean validateReviewConsistency(int rating, String text) {
-        if (text == null || text.length() < 10) return true;
+    public ReviewAnalysisResultDTO validateReviewConsistency(int rating, String text) {
+        if (text == null || text.length() < 10) {
+            return ReviewAnalysisResultDTO.builder().consistent(true).reason(null).build();
+        }
 
         String prompt = """
                 You are a Review Authenticity Guard for a camping resort. 
@@ -108,14 +110,16 @@ public class AiService {
             String raw = callGroq(prompt);
             JsonNode node = objectMapper.readTree(extractJson(raw));
             boolean consistent = node.path("consistent").asBoolean(true);
+            String reason = node.path("reason").asText(null);
+            
             if (!consistent) {
                 log.warn("AI detected inconsistent review: Rating={}, Text='{}', Reason='{}'", 
-                         rating, text, node.path("reason").asText());
+                         rating, text, reason);
             }
-            return consistent;
+            return ReviewAnalysisResultDTO.builder().consistent(consistent).reason(reason).build();
         } catch (Exception e) {
             log.error("Consistency check failed, defaulting to true: {}", e.getMessage());
-            return true;
+            return ReviewAnalysisResultDTO.builder().consistent(true).reason(null).build();
         }
     }
 

@@ -24,6 +24,11 @@ public class ServiceReviewService {
     private final AiService aiService;
 
     public Page<ServiceReview> getReviewsByService(Long serviceId, Pageable pageable) {
+        // Si l'utilisateur est Admin, on renvoie tout (pour résolution)
+        if (tn.esprit.projetintegre.security.SecurityUtil.hasRole(tn.esprit.projetintegre.enums.Role.ADMIN)) {
+            return serviceReviewRepository.findByServiceId(serviceId, pageable);
+        }
+        // Sinon, seulement les approuvés
         return serviceReviewRepository.findByServiceIdAndIsApprovedTrue(serviceId, pageable);
     }
 
@@ -34,7 +39,7 @@ public class ServiceReviewService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
         // --- Review Authenticity Guard (AI Validator) ---
-        boolean isConsistent = aiService.validateReviewConsistency(review.getRating(), review.getComment());
+        tn.esprit.projetintegre.dto.ReviewAnalysisResultDTO analysis = aiService.validateReviewConsistency(review.getRating(), review.getComment());
 
         // Chercher si un avis existe déjà pour le mettre à jour
         ServiceReview existing = serviceReviewRepository.findByServiceIdAndUserId(serviceId, userId).orElse(null);
@@ -47,13 +52,15 @@ public class ServiceReviewService {
             existing.setComment(review.getComment());
             existing.setPros(review.getPros());
             existing.setCons(review.getCons());
-            existing.setIsApproved(isConsistent); // Déapprouvé si incohérent
+            existing.setIsApproved(analysis.isConsistent()); // Déapprouvé si incohérent
+            existing.setAiConsistencyAlert(analysis.getReason());
             return serviceReviewRepository.save(existing);
         }
 
         review.setService(service);
         review.setUser(user);
-        review.setIsApproved(isConsistent); // Déapprouvé si incohérent
+        review.setIsApproved(analysis.isConsistent()); // Déapprouvé si incohérent
+        review.setAiConsistencyAlert(analysis.getReason());
         
         return serviceReviewRepository.save(review);
     }

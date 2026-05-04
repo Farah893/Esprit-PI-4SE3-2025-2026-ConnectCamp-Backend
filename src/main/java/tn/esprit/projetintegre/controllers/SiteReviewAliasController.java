@@ -36,10 +36,30 @@ public class SiteReviewAliasController {
     public ResponseEntity<ApiResponse<Review>> createSiteReview(
             @PathVariable Long siteId,
             @RequestBody Review review,
-            @RequestParam Long userId) {
+            @RequestParam(required = false) Long userId) {
+        
+        Long finalUserId = userId;
+        // 1. Try to get userId from Security Context (Most reliable)
+        if (finalUserId == null) {
+            try {
+                finalUserId = tn.esprit.projetintegre.security.SecurityUtil.getCurrentUserId();
+            } catch (Exception e) {
+                // Ignore and try next method
+            }
+        }
+        
+        // 2. Try to get userId from the review object body
+        if (finalUserId == null && review.getUser() != null) {
+            finalUserId = review.getUser().getId();
+        }
+        
+        if (finalUserId == null) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("User ID is required. Please make sure you are logged in."));
+        }
+
         review.setTargetType(ReviewTargetType.SITE);
         review.setTargetId(siteId);
-        return ResponseEntity.ok(ApiResponse.success("Review created successfully",
-                reviewService.createReview(review, userId)));
+        return ResponseEntity.ok(ApiResponse.success("Review submitted successfully",
+                reviewService.createReview(review, finalUserId)));
     }
 }

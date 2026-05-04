@@ -399,6 +399,13 @@ public class PackService {
                 .build();
     }
 
+    public void updateActiveStatus(Long id, boolean active) {
+        if (!SecurityUtil.hasRole(Role.ADMIN)) {
+            throw new AccessDeniedException("Only ADMIN can update pack status");
+        }
+        packRepository.updateActiveStatus(id, active);
+    }
+
     private Double calculateDiscount(BigDecimal price, BigDecimal originalPrice) {
         if (originalPrice != null && originalPrice.compareTo(BigDecimal.ZERO) > 0 && price != null) {
             return originalPrice.subtract(price).divide(originalPrice, 4, RoundingMode.HALF_UP)

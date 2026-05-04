@@ -82,6 +82,9 @@ public class ServiceReview {
     @Min(value = 0, message = "Le nombre de signalements doit être positif")
     private Integer reportCount = 0;
 
+    @Column(length = 2000)
+    private String aiConsistencyAlert;
+
     @Size(max = 1000, message = "La réponse ne peut pas dépasser 1000 caractères")
     @Column(length = 1000)
     private String providerResponse;

@@ -74,10 +74,14 @@ public class CartService {
             
             if (productOpt.isPresent()) {
                 Product product = productOpt.get();
-                itemBuilder.product(product).price(product.getPrice());
+                BigDecimal price = product.getPrice();
+                if (price == null) price = BigDecimal.ZERO;
+                itemBuilder.product(product).price(price);
             } else {
                 Pack pack = packOpt.get();
-                itemBuilder.pack(pack).price(pack.getPrice());
+                BigDecimal price = pack.getPrice();
+                if (price == null) price = BigDecimal.ZERO;
+                itemBuilder.pack(pack).price(price);
             }
             
             CartItem newItem = itemBuilder.build();
@@ -85,6 +89,7 @@ public class CartService {
             cartItemRepository.save(newItem);
         }
 
+        // Force subtotal recalculation with DB prices
         cart.calculateTotal();
         return cartRepository.save(cart);
     }

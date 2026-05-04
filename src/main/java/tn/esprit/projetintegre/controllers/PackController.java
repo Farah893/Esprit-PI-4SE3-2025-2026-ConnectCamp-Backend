@@ -135,4 +135,14 @@ public class PackController {
         List<tn.esprit.projetintegre.dto.PackQualityDTO> result = packService.getPackQualityMetrics();
         return ResponseEntity.ok(ApiResponse.success(result));
     }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Activer ou désactiver un pack")
+    public ResponseEntity<ApiResponse<Void>> updateActiveStatus(
+            @PathVariable Long id,
+            @RequestParam boolean active) {
+        packService.updateActiveStatus(id, active);
+        return ResponseEntity.ok(ApiResponse.success("Statut mis à jour avec succès", null));
+    }
 }
