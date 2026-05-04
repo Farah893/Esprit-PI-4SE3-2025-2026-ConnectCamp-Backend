@@ -48,20 +48,24 @@ public class SiteReviewAliasController {
         // 1. Try to get userId from Security Context (Most reliable)
         if (finalUserId == null) {
             String email = SecurityUtil.getCurrentUserEmail();
+            System.out.println("DEBUG: Review creation - Security context email: " + email);
             if (email != null) {
                 finalUserId = userRepository.findByUsername(email)
                         .or(() -> userRepository.findByEmail(email))
                         .map(tn.esprit.projetintegre.entities.User::getId)
                         .orElse(null);
+                System.out.println("DEBUG: Resolved finalUserId from email: " + finalUserId);
             }
         }
         
         // 2. Try to get userId from the review object body
         if (finalUserId == null && review.getUser() != null) {
             finalUserId = review.getUser().getId();
+            System.out.println("DEBUG: Resolved finalUserId from review body: " + finalUserId);
         }
         
         if (finalUserId == null) {
+            System.err.println("ERROR: No userId found for review creation!");
             return ResponseEntity.badRequest().body(ApiResponse.error("User ID is required. Please make sure you are logged in."));
         }
 
