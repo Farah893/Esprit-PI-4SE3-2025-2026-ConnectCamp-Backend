@@ -12,6 +12,11 @@ import tn.esprit.projetintegre.dto.PageResponse;
 import tn.esprit.projetintegre.entities.Review;
 import tn.esprit.projetintegre.enums.ReviewTargetType;
 import tn.esprit.projetintegre.services.GeneralReviewService;
+import tn.esprit.projetintegre.repositories.UserRepository;
+import tn.esprit.projetintegre.security.SecurityUtil;
+
+import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/reviews")
@@ -21,14 +26,15 @@ import tn.esprit.projetintegre.services.GeneralReviewService;
 public class SiteReviewAliasController {
 
     private final GeneralReviewService reviewService;
+    private final UserRepository userRepository;
 
     @GetMapping("/site/{siteId}")
     @Operation(summary = "Get reviews for a site (Alias)")
-    public ResponseEntity<ApiResponse<PageResponse<Review>>> getSiteReviews(
+    public ResponseEntity<ApiResponse<List<Review>>> getSiteReviews(
             @PathVariable Long siteId,
             Pageable pageable) {
         Page<Review> page = reviewService.getReviewsByTarget(ReviewTargetType.SITE, siteId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(PageResponse.from(page)));
+        return ResponseEntity.ok(ApiResponse.success(page.getContent()));
     }
 
     @PostMapping("/site/{siteId}")
@@ -41,10 +47,12 @@ public class SiteReviewAliasController {
         Long finalUserId = userId;
         // 1. Try to get userId from Security Context (Most reliable)
         if (finalUserId == null) {
-            try {
-                finalUserId = tn.esprit.projetintegre.security.SecurityUtil.getCurrentUserId();
-            } catch (Exception e) {
-                // Ignore and try next method
+            String email = SecurityUtil.getCurrentUserEmail();
+            if (email != null) {
+                finalUserId = userRepository.findByUsername(email)
+                        .or(() -> userRepository.findByEmail(email))
+                        .map(tn.esprit.projetintegre.entities.User::getId)
+                        .orElse(null);
             }
         }
         
