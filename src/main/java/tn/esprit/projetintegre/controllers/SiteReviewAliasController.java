@@ -80,6 +80,22 @@ public class SiteReviewAliasController {
         return ResponseEntity.ok(ApiResponse.success("Review submitted successfully", mapToDTO(saved)));
     }
 
+    @PutMapping("/{id}")
+    @Operation(summary = "Update a review (Alias)")
+    public ResponseEntity<ApiResponse<ReviewResponseDTO>> updateReview(
+            @PathVariable Long id,
+            @RequestBody Review reviewDetails) {
+        Review updated = reviewService.updateReview(id, reviewDetails);
+        return ResponseEntity.ok(ApiResponse.success("Review updated successfully", mapToDTO(updated)));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Delete a review (Alias)")
+    public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long id) {
+        reviewService.deleteReview(id);
+        return ResponseEntity.ok(ApiResponse.success("Review deleted successfully", null));
+    }
+
     private ReviewResponseDTO mapToDTO(Review review) {
         return ReviewResponseDTO.builder()
                 .id(review.getId())
