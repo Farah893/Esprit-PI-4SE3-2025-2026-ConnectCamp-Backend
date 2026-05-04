@@ -27,6 +27,10 @@ public class CartItem {
     @JoinColumn(name = "product_id")
     private Product product;
 
+    @ManyToOne
+    @JoinColumn(name = "pack_id")
+    private Pack pack;
+
     private Integer quantity = 1;
 
     @Column(precision = 15, scale = 2)
@@ -41,8 +45,12 @@ public class CartItem {
     @PrePersist
     protected void onCreate() {
         addedAt = LocalDateTime.now();
-        if (price == null && product != null) {
-            price = product.getPrice();
+        if (price == null) {
+            if (product != null) {
+                price = product.getPrice();
+            } else if (pack != null) {
+                price = pack.getPrice();
+            }
         }
     }
 }

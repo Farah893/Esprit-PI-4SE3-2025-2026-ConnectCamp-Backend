@@ -22,6 +22,7 @@ public class CartService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
+    private final PackRepository packRepository;
     private final UserService userService ;
 
 
@@ -41,22 +42,43 @@ public class CartService {
     @Transactional
     public Cart addItemToCart(Long userId, Long productId, Integer quantity) {
         Cart cart = getCartByUserId(userId);
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+        
+        // Try to find as Product first, then as Pack
+        Optional<Product> productOpt = productRepository.findById(productId);
+        Optional<Pack> packOpt = productOpt.isPresent() ? Optional.empty() : packRepository.findById(productId);
 
-        Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId);
+        if (productOpt.isEmpty() && packOpt.isEmpty()) {
+            throw new ResourceNotFoundException("Product or Pack not found with ID: " + productId);
+        }
+
+        Optional<CartItem> existingItem;
+        if (productOpt.isPresent()) {
+            existingItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId);
+        } else {
+            // For packs, we need a separate find method or manual check
+            existingItem = cart.getItems().stream()
+                    .filter(i -> i.getPack() != null && i.getPack().getId().equals(productId))
+                    .findFirst();
+        }
 
         if (existingItem.isPresent()) {
             CartItem item = existingItem.get();
             item.setQuantity(item.getQuantity() + quantity);
             cartItemRepository.save(item);
         } else {
-            CartItem newItem = CartItem.builder()
+            CartItem.CartItemBuilder itemBuilder = CartItem.builder()
                     .cart(cart)
-                    .product(product)
-                    .quantity(quantity)
-                    .price(product.getPrice())
-                    .build();
+                    .quantity(quantity);
+            
+            if (productOpt.isPresent()) {
+                Product product = productOpt.get();
+                itemBuilder.product(product).price(product.getPrice());
+            } else {
+                Pack pack = packOpt.get();
+                itemBuilder.pack(pack).price(pack.getPrice());
+            }
+            
+            CartItem newItem = itemBuilder.build();
             cart.getItems().add(newItem);
             cartItemRepository.save(newItem);
         }

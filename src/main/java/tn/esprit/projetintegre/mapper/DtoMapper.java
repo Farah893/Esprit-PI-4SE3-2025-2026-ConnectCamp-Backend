@@ -696,21 +696,35 @@ public class DtoMapper {
     public CartItemResponse toCartItemResponse(CartItem entity) {
         if (entity == null)
             return null;
+        
+        String name = "";
+        String thumbnail = null;
+        Long productId = null;
+        Integer stock = 0;
+
+        if (entity.getProduct() != null) {
+            name = entity.getProduct().getName();
+            thumbnail = entity.getProduct().getThumbnail();
+            productId = entity.getProduct().getId();
+            stock = entity.getProduct().getStockQuantity();
+        } else if (entity.getPack() != null) {
+            name = entity.getPack().getName();
+            thumbnail = entity.getPack().getImage(); // or getImage() depending on which one is used
+            productId = entity.getPack().getId();
+            stock = entity.getPack().getAvailableQuantity();
+        }
+
         return CartItemResponse.builder()
                 .id(entity.getId())
-                .productId(entity.getProduct() != null ? entity.getProduct().getId() : null)
-                .productName(entity.getProduct() != null ? entity.getProduct().getName() : null)
-                // Correction : productImage devient productThumbnail
-                .productThumbnail(entity.getProduct() != null ? entity.getProduct().getThumbnail() : null)
+                .productId(productId)
+                .productName(name)
+                .productThumbnail(thumbnail)
                 .quantity(entity.getQuantity())
-                // Correction : price devient unitPrice pour correspondre au DTO
                 .unitPrice(entity.getPrice())
-                // Calcul du sous-total
                 .subtotal(entity.getPrice() != null && entity.getQuantity() != null
                         ? entity.getPrice().multiply(java.math.BigDecimal.valueOf(entity.getQuantity()))
                         : java.math.BigDecimal.ZERO)
-                // Ajout du stock disponible depuis le produit
-                .stockAvailable(entity.getProduct() != null ? entity.getProduct().getStockQuantity() : 0)
+                .stockAvailable(stock)
                 .build();
     }
 
