@@ -412,6 +412,11 @@ public class AiService {
     }
 
     private String callGroq(String userMessage) {
+        System.out.println("DEBUG: Calling Groq API with model: " + model);
+        if (apiKey == null || apiKey.equals("YOUR_GROQ_API_KEY")) {
+            System.err.println("ERROR: Groq API Key is NOT SET or is DEFAULT!");
+        }
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(apiKey);
@@ -430,9 +435,14 @@ public class AiService {
             ResponseEntity<JsonNode> response = restTemplate.exchange(apiUrl, HttpMethod.POST, entity, JsonNode.class);
             JsonNode choices = Objects.requireNonNull(response.getBody()).get("choices");
             if (choices != null && choices.isArray() && !choices.isEmpty()) {
-                return choices.get(0).get("message").get("content").asText();
+                String result = choices.get(0).get("message").get("content").asText();
+                System.out.println("DEBUG: Groq API Response length: " + result.length());
+                return result;
+            } else {
+                System.err.println("ERROR: Groq API returned empty choices");
             }
         } catch (Exception e) {
+            System.err.println("ERROR: Groq API call failed: " + e.getMessage());
             log.error("Groq API call failed: {}", e.getMessage());
         }
         return "{}";
