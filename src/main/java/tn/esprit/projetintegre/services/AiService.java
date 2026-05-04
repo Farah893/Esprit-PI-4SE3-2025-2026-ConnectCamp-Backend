@@ -467,6 +467,7 @@ public class AiService {
     }
 
     private AiPackAdvisorResponseDTO parsePackAdvisor(String raw, List<PackQualityDTO> allPacks) {
+        System.out.println("DEBUG: AI Raw Response to parse: " + raw);
         try {
             JsonNode node = objectMapper.readTree(extractJson(raw));
             List<Long> ids = new ArrayList<>();
