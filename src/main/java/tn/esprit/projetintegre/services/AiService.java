@@ -445,8 +445,9 @@ public class AiService {
         } catch (Exception e) {
             System.err.println("ERROR: Groq API call failed: " + e.getMessage());
             log.error("Groq API call failed: {}", e.getMessage());
+            return "{\"recommendation\": \"AI Error: " + e.getMessage().replace("\"", "'") + "\"}";
         }
-        return "{}";
+        return "{\"recommendation\": \"No response from AI server.\"}";
     }
 
     private AiSitrepResponseDTO parseSitrep(String raw, int alertCount) {
