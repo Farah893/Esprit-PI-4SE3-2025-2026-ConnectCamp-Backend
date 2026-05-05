@@ -17,7 +17,7 @@ import tn.esprit.projetintegre.services.CartService;
 @RequiredArgsConstructor
 @Tag(name = "Cart", description = "Shopping cart endpoints")
 @SecurityRequirement(name = "Bearer Authentication")
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net"}, allowCredentials = "true")
 public class CartController {
 
     private final CartService cartService;

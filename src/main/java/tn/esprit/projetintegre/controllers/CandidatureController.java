@@ -14,7 +14,7 @@ import tn.esprit.projetintegre.services.CandidatureServiceLogic;
 @RestController
 @RequestMapping("/api/candidatures")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net"}, allowCredentials = "true")
 @Tag(name = "Candidatures Service", description = "Endpoints for participants to apply as workers and organizers to manage them")
 public class CandidatureController {
 

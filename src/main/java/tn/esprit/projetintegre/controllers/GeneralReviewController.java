@@ -16,7 +16,7 @@ import tn.esprit.projetintegre.services.GeneralReviewService;
 @RestController
 @RequestMapping("/api/general-reviews")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net"}, allowCredentials = "true")
 @Tag(name = "General Reviews", description = "Polymorphic reviews for Events, Products, etc.")
 public class GeneralReviewController {
 

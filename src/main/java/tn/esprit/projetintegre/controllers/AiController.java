@@ -12,7 +12,7 @@ import tn.esprit.projetintegre.services.AiService;
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net"}, allowCredentials = "true")
 @Tag(name = "AI Analytics", description = "Endpoints pour les analyses IA et Groq LLaMA")
 public class AiController {
 

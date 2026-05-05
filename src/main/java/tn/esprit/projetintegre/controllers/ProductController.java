@@ -43,7 +43,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Tag(name = "Products", description = "Product management endpoints")
 @SecurityRequirement(name = "Bearer Authentication")
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net"}, allowCredentials = "true")
 public class ProductController {
 
     private final ProductService productService;

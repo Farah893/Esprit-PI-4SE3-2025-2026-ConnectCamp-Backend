@@ -26,7 +26,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/camping-services")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net"}, allowCredentials = "true")
 @Tag(name = "Camping Services", description = "Camping service management APIs")
 public class CampingServiceController {
 

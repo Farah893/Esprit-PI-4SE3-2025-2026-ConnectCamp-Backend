@@ -24,7 +24,7 @@ public class WebConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        .allowedOrigins("http://localhost:4200")
+                        .allowedOrigins("http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net")
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                         .allowedHeaders("*") // Permet tous les en-têtes (Authorization, Content-Type, etc.)
                         .exposedHeaders("Authorization") // Expose l'en-tête Authorization au frontend

@@ -18,7 +18,7 @@ import java.util.List;
 @RequestMapping("/api/wallets")
 @RequiredArgsConstructor
 @Tag(name = "Wallets", description = "Wallet management APIs")
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net"}, allowCredentials = "true")
 public class WalletController {
 
     private final WalletService walletService;

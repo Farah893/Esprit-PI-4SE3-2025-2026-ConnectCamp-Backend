@@ -19,7 +19,7 @@ import java.util.List;
 @RequestMapping("/api/wishlists")
 @RequiredArgsConstructor
 @Tag(name = "Wishlists", description = "Wishlist management APIs")
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net"}, allowCredentials = "true")
 public class WishlistController {
 
     private final WishlistService wishlistService;

@@ -15,7 +15,7 @@ import tn.esprit.projetintegre.services.ReviewService;
 @RestController
 @RequestMapping("/api/product-reviews")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net"}, allowCredentials = "true")
 @Tag(name = "Reviews", description = "Product review management APIs")
 public class ReviewController {
 

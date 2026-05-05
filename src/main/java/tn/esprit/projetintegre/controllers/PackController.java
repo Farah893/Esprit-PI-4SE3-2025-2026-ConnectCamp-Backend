@@ -27,7 +27,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/packs")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:4200", "https://lively-wave-019e62b03.7.azurestaticapps.net"}, allowCredentials = "true")
 @Tag(name = "Packs", description = "API pour la gestion des packs de services")
 public class PackController {
 
